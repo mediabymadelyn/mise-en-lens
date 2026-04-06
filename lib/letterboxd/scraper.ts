@@ -73,71 +73,112 @@ export function parseLetterboxdInput(input?: string): string {
 export async function runLetterboxdScraper(input: string): Promise<LetterboxdScrapeResult> {
   const scriptPath = path.join(process.cwd(), "scripts", "scrape_top4.py");
 
-  return new Promise<LetterboxdScrapeResult>((resolve) => {
-    const child = spawn("python3", [scriptPath, input], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+  const pythonCandidates = Array.from(
+    new Set(
+      [
+        process.env.PYTHON_BIN,
+        process.env.PYTHON_EXECUTABLE,
+        "python3",
+        "python",
+        "/opt/anaconda3/bin/python3",
+      ].filter((value): value is string => Boolean(value && value.trim()))
+    )
+  );
 
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timeoutMs = 20000;
-
-    const timeout = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      resolve({
-        ok: false,
-        error: "Scraper timed out after 20 seconds.",
-        films: [],
+  for (const pythonBinary of pythonCandidates) {
+    const result = await new Promise<LetterboxdScrapeResult | null>((resolve) => {
+      const child = spawn(pythonBinary, [scriptPath, input], {
+        stdio: ["ignore", "pipe", "pipe"],
       });
-    }, timeoutMs);
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const timeoutMs = 20000;
 
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        error: `Scraper failed to start: ${error.message}`,
-        films: [],
-      });
-    });
-
-    child.on("close", () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-
-      const output = stdout.trim();
-      if (!output) {
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill("SIGKILL");
         resolve({
           ok: false,
-          error: stderr.trim() || "Scraper returned no output.",
+          error: "Scraper timed out after 20 seconds.",
           films: [],
         });
-        return;
-      }
+      }, timeoutMs);
 
-      try {
-        const parsed = JSON.parse(output) as LetterboxdScrapeResult;
-        resolve(parsed);
-      } catch {
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      child.on("error", (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          resolve(null);
+          return;
+        }
+
         resolve({
           ok: false,
-          error: stderr.trim() || `Scraper returned invalid JSON: ${output.slice(0, 200)}`,
+          error: `Scraper failed to start with ${pythonBinary}: ${error.message}`,
           films: [],
         });
-      }
+      });
+
+      child.on("close", () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+
+        const output = stdout.trim();
+        if (!output) {
+          resolve({
+            ok: false,
+            error: stderr.trim() || "Scraper returned no output.",
+            films: [],
+          });
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(output) as LetterboxdScrapeResult;
+          resolve(parsed);
+        } catch {
+          resolve({
+            ok: false,
+            error: stderr.trim() || `Scraper returned invalid JSON: ${output.slice(0, 200)}`,
+            films: [],
+          });
+        }
+      });
     });
-  });
+
+    if (result === null) {
+      continue;
+    }
+
+    if (
+      !result.ok &&
+      result.error.includes("ModuleNotFoundError") &&
+      result.error.includes("requests")
+    ) {
+      continue;
+    }
+
+    return result;
+  }
+
+  return {
+    ok: false,
+    error:
+      "No usable Python interpreter found for scraper. Set PYTHON_BIN (or PYTHON_EXECUTABLE) to an interpreter with requests and beautifulsoup4 installed.",
+    films: [],
+  };
 }

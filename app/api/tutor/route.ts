@@ -45,7 +45,16 @@ export async function POST(request: Request) {
         } satisfies TutorResponse,
         { status: 200 }
       );
-    } catch {
+    } catch (error) {
+      const openAiError = error instanceof Error ? error.message : "Unknown OpenAI error.";
+      console.error("Tutor OpenAI generation failed; using fallback.", openAiError);
+
+      const fallbackWarning =
+        body.warning ??
+        (process.env.NODE_ENV === "development"
+          ? `Using the built-in lesson generator. OpenAI error: ${openAiError}`
+          : "Using the built-in lesson generator. OpenAI request failed, so fallback content was used.");
+
       const fallbackLesson = buildFallbackLesson(films, mode);
 
       return Response.json(
@@ -57,9 +66,7 @@ export async function POST(request: Request) {
           source_url: body.source_url,
           films,
           lesson: fallbackLesson,
-          warning:
-            body.warning ??
-            "Using the built-in lesson generator. Add a valid OpenAI key for richer film-specific analysis.",
+          warning: fallbackWarning,
         } satisfies TutorResponse,
         { status: 200 }
       );

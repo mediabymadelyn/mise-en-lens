@@ -147,7 +147,6 @@ export async function generateLessonWithOpenAI(
     },
     body: JSON.stringify({
       model: DEFAULT_MODEL,
-      reasoning: { effort: "low" },
       store: false,
       input: buildPrompt(films, mode),
       text: {
@@ -164,11 +163,25 @@ export async function generateLessonWithOpenAI(
     throw new Error(`OpenAI request failed: ${response.status} ${errorText}`);
   }
 
-  const payload = (await response.json()) as { output_text?: string };
-  const outputText = payload.output_text;
+  const payload = (await response.json()) as {
+    output_text?: string;
+    output?: Array<{
+      content?: Array<{
+        type?: string;
+        text?: string;
+      }>;
+    }>;
+  };
+
+  const outputText =
+    payload.output_text ??
+    payload.output
+      ?.flatMap((item) => item.content ?? [])
+      .find((part) => part.type === "output_text" && typeof part.text === "string")
+      ?.text;
 
   if (!outputText) {
-    throw new Error("OpenAI response did not include output_text.");
+    throw new Error("OpenAI response did not include parsable text output.");
   }
 
   return JSON.parse(outputText) as TutorPayload;
