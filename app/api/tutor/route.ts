@@ -1,5 +1,5 @@
-import { buildFallbackLesson } from "@/lib/film-tutor/fallback";
-import { generateLessonWithOpenAI } from "@/lib/film-tutor/openai";
+import { buildFallbackLesson, buildFallbackQuiz } from "@/lib/film-tutor/fallback";
+import { generateLessonWithOpenAI, generateQuizWithOpenAI } from "@/lib/film-tutor/openai";
 import type { TutorMode, TutorResponse } from "@/lib/film-tutor/types";
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
 
@@ -30,7 +30,25 @@ export async function POST(request: Request) {
     }
 
     try {
-      const lesson = await generateLessonWithOpenAI(films, mode);
+      if (mode === "quiz") {
+        const quiz = await generateQuizWithOpenAI(films);
+
+        return Response.json(
+          {
+            ok: true,
+            generatedBy: "openai",
+            mode,
+            username: body.username,
+            source_url: body.source_url,
+            films,
+            quiz,
+            warning: body.warning,
+          } satisfies TutorResponse,
+          { status: 200 }
+        );
+      }
+
+      const lesson = await generateLessonWithOpenAI(films);
 
       return Response.json(
         {
@@ -55,7 +73,25 @@ export async function POST(request: Request) {
           ? `Using the built-in lesson generator. OpenAI error: ${openAiError}`
           : "Using the built-in lesson generator. OpenAI request failed, so fallback content was used.");
 
-      const fallbackLesson = buildFallbackLesson(films, mode);
+      if (mode === "quiz") {
+        const fallbackQuiz = buildFallbackQuiz(films);
+
+        return Response.json(
+          {
+            ok: true,
+            generatedBy: "fallback",
+            mode,
+            username: body.username,
+            source_url: body.source_url,
+            films,
+            quiz: fallbackQuiz,
+            warning: fallbackWarning,
+          } satisfies TutorResponse,
+          { status: 200 }
+        );
+      }
+
+      const fallbackLesson = buildFallbackLesson(films);
 
       return Response.json(
         {

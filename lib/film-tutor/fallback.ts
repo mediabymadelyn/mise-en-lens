@@ -1,5 +1,5 @@
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
-import type { QuizQuestion, TutorMode, TutorPayload } from "@/lib/film-tutor/types";
+import type { QuizQuestion, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 
 const TITLE_KEYWORDS = {
   animation: ["spirited", "totoro", "animated", "spider-verse", "shrek", "coraline", "fantastic mr"],
@@ -158,26 +158,46 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
   return [
     {
       id: "q1",
-      prompt: `In ${first}, what is one visual or sound choice that could shape how a viewer feels during a scene?`,
+      questionType: "multiple_choice",
+      prompt: `Which part of ${first} would you most likely study first if you wanted to talk about how the film creates feeling?`,
       focus: archetype.conceptName,
-      hint: "Think about framing, color, editing, music, silence, or camera distance.",
-      expectedAnswer:
-        "A strong answer points to a specific formal choice, like lighting, framing, sound, or editing, and explains the feeling or idea it creates.",
-      acceptableKeywords: ["camera", "framing", "lighting", "color", "sound", "editing", "music"],
+      hint: "Choose the answer that points to a film technique, not just plot recap.",
+      explanation:
+        "Film analysis usually starts with a visible or audible craft choice because that gives you something concrete to interpret.",
+      options: [
+        "A camera, sound, or color choice",
+        "Every plot twist in order",
+        "The full ending explained",
+        "A complete character biography",
+      ],
+      correctAnswer: "A camera, sound, or color choice",
       correctFeedback:
-        "That works well because you connected a film technique to audience experience, which is the core move in film analysis.",
+        "Exactly. Recognizing a formal choice is the fastest way into film analysis.",
       partialFeedback:
-        "You are identifying a useful element. Push it one step further by explaining what feeling, theme, or perspective that choice creates.",
+        "You are close, but the best starting point is usually a concrete craft choice like framing, sound, or color.",
       incorrectFeedback:
-        "Try focusing less on plot summary and more on how the movie is made. Pick one formal choice, then explain its effect.",
+        "Try looking for a craft decision rather than retelling the story. Film analysis becomes easier when you begin with something the movie is doing on screen or in sound.",
     },
     {
       id: "q2",
-      prompt: `What kind of social value, fear, or cultural question might ${second} reflect?`,
+      questionType: "short_answer",
+      prompt: `In one short sentence, what bigger issue could ${second} connect to: identity, power, family, technology, or something similar?`,
       focus: "Societal context",
-      hint: "Consider identity, technology, violence, class, memory, gender, family, or power.",
-      expectedAnswer:
-        "A strong answer connects the film to a bigger issue, then explains how the story or style makes that issue visible.",
+      hint: "Keep it short. Name one issue and, if you can, connect it to a scene, mood, or recurring image.",
+      explanation:
+        "A good answer does not need to be perfect. It just needs to connect the film to one larger cultural concern.",
+      maxWords: 18,
+      placeholder: "Example: It could connect to identity and how the film shows people trying to belong.",
+      acceptableAnswers: [
+        "identity",
+        "power",
+        "family",
+        "technology",
+        "class",
+        "memory",
+        "gender",
+        "violence",
+      ],
       acceptableKeywords: [
         "society",
         "culture",
@@ -189,34 +209,49 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
         "technology",
       ],
       correctFeedback:
-        "Nice connection. Film literacy grows when you link style and story to the historical or social conversations around them.",
+        "Nice. That kind of short connection is enough to start building media-literacy habits.",
       partialFeedback:
-        "You are moving in the right direction. Try naming the larger issue more directly and tying it to a scene, tone, or recurring image.",
+        "You are moving in the right direction. Try naming the bigger issue a little more directly.",
       incorrectFeedback:
-        "A good next try is to move from what happens in the film to what the film seems to say about the world around it.",
+        "A helpful next try is to name one big issue, like identity or power, instead of summarizing the plot.",
     },
     {
       id: "q3",
-      prompt: `Based on your Top 4, how would you explain ${archetype.conceptName.toLowerCase()} to someone using ${third} as an example?`,
+      questionType: "short_answer",
+      prompt: `Using ${third}, finish this idea in one sentence: "${archetype.conceptName} matters because..."`,
       focus: archetype.conceptName,
-      hint: "Use simple language. Define the concept, then connect it to one concrete artistic decision.",
-      expectedAnswer:
-        "A strong answer gives a beginner-friendly definition and then ties it to a clear example from one film.",
-      acceptableKeywords: archetype.conceptName
+      hint: "Use plain language. You only need one short reason and one small example.",
+      explanation:
+        "This final step is about transfer: using a film you know to explain why a film-studies idea is useful.",
+      maxWords: 20,
+      placeholder: "Example: ...because it helps explain how the movie's look shapes the mood.",
+      acceptableAnswers: archetype.conceptName
         .toLowerCase()
         .split(/[^a-z]+/)
         .filter(Boolean),
+      acceptableKeywords: [
+        ...archetype.conceptName
+          .toLowerCase()
+          .split(/[^a-z]+/)
+          .filter(Boolean),
+        "mood",
+        "feeling",
+        "style",
+        "camera",
+        "sound",
+        "color",
+      ],
       correctFeedback:
-        "That is exactly the transfer we want: you used a film you love to explain a reusable film-studies idea.",
+        "That works well. You connected a concept to a concrete effect, which is exactly the skill this quiz is practicing.",
       partialFeedback:
-        "The concept is starting to come through. Tighten the answer by defining it clearly before you move to the example.",
+        "The idea is coming through. Tighten it by naming what the concept helps you notice in the film.",
       incorrectFeedback:
-        "Try defining the concept in one sentence first, then point to a visual, sound, or staging choice that shows it in action.",
+        "Try one short reason the concept matters, then point to a visual or sound choice in the film.",
     },
   ];
 }
 
-export function buildFallbackLesson(films: LetterboxdFilm[], mode: TutorMode): TutorPayload {
+export function buildFallbackLesson(films: LetterboxdFilm[]): TutorLessonPayload {
   const titles = films.map((film) => film.title);
   const archetype = detectArchetype(titles);
   const tasteProfile = [
@@ -224,14 +259,6 @@ export function buildFallbackLesson(films: LetterboxdFilm[], mode: TutorMode): T
     "Your Top 4 suggests you value atmosphere, style, and the feeling a film leaves behind.",
     "This mix is well-suited for learning film theory because the selections invite discussion about form as well as story.",
   ];
-
-  const quiz = {
-    intro:
-      mode === "quiz"
-        ? "This quiz uses your favorites as entry points into film theory, so each question asks you to connect a movie you already know to a bigger artistic idea."
-        : "If you switch to quiz mode, you can practice turning these observations into your own film-analysis language.",
-    questions: buildQuizQuestions(films, archetype),
-  };
 
   return {
     headline: "Your Top 4 already functions like a film-studies syllabus.",
@@ -249,6 +276,16 @@ export function buildFallbackLesson(films: LetterboxdFilm[], mode: TutorMode): T
       whyYouMightLikeIt: archetype.recommendation.why,
       educationalRedirect: archetype.recommendation.redirect,
     },
-    quiz,
+  };
+}
+
+export function buildFallbackQuiz(films: LetterboxdFilm[]): TutorQuizPayload {
+  const archetype = detectArchetype(films.map((film) => film.title));
+
+  return {
+    title: "Practice with your Top 4",
+    intro:
+      "This short quiz is designed to be quick. Start by recognizing a film choice, then make one short interpretation, then finish with a brief transfer idea.",
+    questions: buildQuizQuestions(films, archetype),
   };
 }

@@ -2,19 +2,34 @@ import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
 
 export type TutorMode = "blurb" | "quiz";
 
-export type QuizQuestion = {
+type QuizQuestionBase = {
   id: string;
   prompt: string;
   focus: string;
   hint: string;
-  expectedAnswer: string;
-  acceptableKeywords: string[];
+  explanation: string;
   correctFeedback: string;
   partialFeedback: string;
   incorrectFeedback: string;
 };
 
-export type TutorPayload = {
+export type MultipleChoiceQuestion = QuizQuestionBase & {
+  questionType: "multiple_choice";
+  options: string[];
+  correctAnswer: string;
+};
+
+export type ShortAnswerQuestion = QuizQuestionBase & {
+  questionType: "short_answer";
+  maxWords: number;
+  placeholder: string;
+  acceptableAnswers: string[];
+  acceptableKeywords: string[];
+};
+
+export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;
+
+export type TutorLessonPayload = {
   headline: string;
   overview: string;
   tasteProfile: string[];
@@ -34,23 +49,36 @@ export type TutorPayload = {
     whyYouMightLikeIt: string;
     educationalRedirect: string;
   };
-  quiz: {
-    intro: string;
-    questions: QuizQuestion[];
-  };
+};
+
+export type TutorQuizPayload = {
+  title: string;
+  intro: string;
+  questions: QuizQuestion[];
+};
+
+type TutorSuccessBase = {
+  ok: true;
+  generatedBy: "openai" | "fallback";
+  username: string;
+  source_url: string;
+  films: LetterboxdFilm[];
+  warning?: string;
+};
+
+export type TutorLessonResponse = TutorSuccessBase & {
+  mode: "blurb";
+  lesson: TutorLessonPayload;
+};
+
+export type TutorQuizResponse = TutorSuccessBase & {
+  mode: "quiz";
+  quiz: TutorQuizPayload;
 };
 
 export type TutorResponse =
-  | {
-      ok: true;
-      generatedBy: "openai" | "fallback";
-      mode: TutorMode;
-      username: string;
-      source_url: string;
-      films: LetterboxdFilm[];
-      lesson: TutorPayload;
-      warning?: string;
-    }
+  | TutorLessonResponse
+  | TutorQuizResponse
   | {
       ok: false;
       error: string;

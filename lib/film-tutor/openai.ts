@@ -1,10 +1,10 @@
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
-import type { TutorMode, TutorPayload } from "@/lib/film-tutor/types";
+import type { TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_FILM_TUTOR_MODEL || "gpt-4o-mini";
 
-const tutorSchema = {
+const lessonSchema = {
   name: "film_tutor_lesson",
   strict: true,
   schema: {
@@ -55,50 +55,6 @@ const tutorSchema = {
         },
         required: ["title", "whyYouMightLikeIt", "educationalRedirect"],
       },
-      quiz: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          intro: { type: "string" },
-          questions: {
-            type: "array",
-            minItems: 3,
-            maxItems: 3,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                id: { type: "string" },
-                prompt: { type: "string" },
-                focus: { type: "string" },
-                hint: { type: "string" },
-                expectedAnswer: { type: "string" },
-                acceptableKeywords: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 2,
-                  maxItems: 8,
-                },
-                correctFeedback: { type: "string" },
-                partialFeedback: { type: "string" },
-                incorrectFeedback: { type: "string" },
-              },
-              required: [
-                "id",
-                "prompt",
-                "focus",
-                "hint",
-                "expectedAnswer",
-                "acceptableKeywords",
-                "correctFeedback",
-                "partialFeedback",
-                "incorrectFeedback",
-              ],
-            },
-          },
-        },
-        required: ["intro", "questions"],
-      },
     },
     required: [
       "headline",
@@ -107,12 +63,113 @@ const tutorSchema = {
       "concept",
       "filmNotes",
       "recommendation",
-      "quiz",
     ],
   },
 } as const;
 
-function buildPrompt(films: LetterboxdFilm[], mode: TutorMode) {
+const quizSchema = {
+  name: "film_tutor_quiz",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      title: { type: "string" },
+      intro: { type: "string" },
+      questions: {
+        type: "array",
+        minItems: 3,
+        maxItems: 3,
+        items: {
+          anyOf: [
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                id: { type: "string" },
+                questionType: { const: "multiple_choice" },
+                prompt: { type: "string" },
+                focus: { type: "string" },
+                hint: { type: "string" },
+                explanation: { type: "string" },
+                options: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 3,
+                  maxItems: 4,
+                },
+                correctAnswer: { type: "string" },
+                correctFeedback: { type: "string" },
+                partialFeedback: { type: "string" },
+                incorrectFeedback: { type: "string" },
+              },
+              required: [
+                "id",
+                "questionType",
+                "prompt",
+                "focus",
+                "hint",
+                "explanation",
+                "options",
+                "correctAnswer",
+                "correctFeedback",
+                "partialFeedback",
+                "incorrectFeedback",
+              ],
+            },
+            {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                id: { type: "string" },
+                questionType: { const: "short_answer" },
+                prompt: { type: "string" },
+                focus: { type: "string" },
+                hint: { type: "string" },
+                explanation: { type: "string" },
+                maxWords: { type: "number" },
+                placeholder: { type: "string" },
+                acceptableAnswers: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  maxItems: 6,
+                },
+                acceptableKeywords: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 2,
+                  maxItems: 10,
+                },
+                correctFeedback: { type: "string" },
+                partialFeedback: { type: "string" },
+                incorrectFeedback: { type: "string" },
+              },
+              required: [
+                "id",
+                "questionType",
+                "prompt",
+                "focus",
+                "hint",
+                "explanation",
+                "maxWords",
+                "placeholder",
+                "acceptableAnswers",
+                "acceptableKeywords",
+                "correctFeedback",
+                "partialFeedback",
+                "incorrectFeedback",
+              ],
+            },
+          ],
+        },
+      },
+    },
+    required: ["title", "intro", "questions"],
+  },
+} as const;
+
+function buildLessonPrompt(films: LetterboxdFilm[]) {
   const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
 
   return [
@@ -123,17 +180,39 @@ function buildPrompt(films: LetterboxdFilm[], mode: TutorMode) {
     "Explain one film concept in beginner-friendly language and connect it to the user's taste.",
     "For each film note, include a short summary of why it fits their taste, one artistic angle, and one societal or historical angle.",
     "Recommendation should feel like educational redirection, not just similarity.",
-    "Quiz questions must be personalized to the user's specific films and should test artistic choices, context, and interpretation.",
-    `Requested emphasis: ${mode === "quiz" ? "prioritize scaffolding for quiz mode" : "prioritize the blurb while still returning the quiz object"}.`,
     "Top 4:",
     lines,
   ].join("\n");
 }
 
-export async function generateLessonWithOpenAI(
-  films: LetterboxdFilm[],
-  mode: TutorMode
-): Promise<TutorPayload> {
+function buildQuizPrompt(films: LetterboxdFilm[]) {
+  const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
+
+  return [
+    "You are Mise-en-Lens, a beginner-friendly film tutor.",
+    "Return JSON only.",
+    "Create a very lightweight, approachable quiz personalized to the user's Top 4 films.",
+    "The quiz must be answerable quickly by a beginner.",
+    "Questions must be answerable in under 10 seconds each.",
+    "Avoid requiring plot recall, broad essays, polished prose, or deep prior film-theory knowledge.",
+    "Prefer recognition over explanation.",
+    "Question progression:",
+    "1. easy recognition question",
+    "2. short guided interpretation",
+    "3. brief transfer or reflection question",
+    "Use one multiple_choice question first, then short_answer questions with tight scaffolding.",
+    "Short answers should allow partial credit from short phrases.",
+    "Keep wording clear, short, and beginner-friendly.",
+    "Personalize to the user's films without becoming so specific that the quiz becomes fact-fragile.",
+    "Top 4:",
+    lines,
+  ].join("\n");
+}
+
+async function generateWithOpenAI<T>(
+  input: string,
+  schema: typeof lessonSchema | typeof quizSchema
+): Promise<T> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("Missing OPENAI_API_KEY.");
@@ -148,11 +227,11 @@ export async function generateLessonWithOpenAI(
     body: JSON.stringify({
       model: DEFAULT_MODEL,
       store: false,
-      input: buildPrompt(films, mode),
+      input,
       text: {
         format: {
           type: "json_schema",
-          ...tutorSchema,
+          ...schema,
         },
       },
     }),
@@ -184,5 +263,15 @@ export async function generateLessonWithOpenAI(
     throw new Error("OpenAI response did not include parsable text output.");
   }
 
-  return JSON.parse(outputText) as TutorPayload;
+  return JSON.parse(outputText) as T;
+}
+
+export async function generateLessonWithOpenAI(
+  films: LetterboxdFilm[]
+): Promise<TutorLessonPayload> {
+  return generateWithOpenAI<TutorLessonPayload>(buildLessonPrompt(films), lessonSchema);
+}
+
+export async function generateQuizWithOpenAI(films: LetterboxdFilm[]): Promise<TutorQuizPayload> {
+  return generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films), quizSchema);
 }
