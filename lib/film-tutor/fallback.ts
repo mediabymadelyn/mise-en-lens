@@ -153,41 +153,63 @@ function buildFilmNote(film: LetterboxdFilm, index: number, archetype: TasteArch
 function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype): QuizQuestion[] {
   const first = films[0]?.title ?? "one of your favorites";
   const second = films[1]?.title ?? "another film in your Top 4";
-  const third = films[2]?.title ?? "your list";
+  const third = films[2]?.title ?? "a third favorite";
+  const fourth = films[3]?.title ?? "a fourth favorite";
 
   return [
     {
       id: "q1",
       questionType: "multiple_choice",
-      prompt: `Which part of ${first} would you most likely study first if you wanted to talk about how the film creates feeling?`,
+      prompt: `To understand how ${first} creates its mood, which element would you notice first?`,
       focus: archetype.conceptName,
-      hint: "Choose the answer that points to a film technique, not just plot recap.",
+      hint: "Look for something you can see or hear on screen.",
       explanation:
-        "Film analysis usually starts with a visible or audible craft choice because that gives you something concrete to interpret.",
+        "Film creates feeling through visible and audible choices. Starting there gives you concrete evidence.",
       options: [
-        "A camera, sound, or color choice",
-        "Every plot twist in order",
-        "The full ending explained",
-        "A complete character biography",
+        "How the camera frames characters and spaces",
+        "The color of lighting in key scenes",
+        "The sound design and silence",
+        "The costumes and props chosen",
       ],
-      correctAnswer: "A camera, sound, or color choice",
+      correctAnswer: "How the camera frames characters and spaces",
       correctFeedback:
-        "Exactly. Recognizing a formal choice is the fastest way into film analysis.",
+        "Yes, exactly. Framing is one of the most direct ways to guide what the viewer feels.",
       partialFeedback:
-        "You are close, but the best starting point is usually a concrete craft choice like framing, sound, or color.",
+        "You're on the right track. These are all techniques, but framing—how the camera positions characters—is the fastest entry point.",
       incorrectFeedback:
-        "Try looking for a craft decision rather than retelling the story. Film analysis becomes easier when you begin with something the movie is doing on screen or in sound.",
+        "Not quite. Pick one of the visible or audible techniques—something you can actually see or hear on screen.",
     },
     {
       id: "q2",
+      questionType: "multiple_choice",
+      prompt: `What best describes how ${second} makes you feel during tense moments?`,
+      focus: "Recognition",
+      hint: "Look at how the film uses specific techniques, not just what happens in the plot.",
+      explanation: "Understanding tone means noticing how style choices create emotion, not just following plot events.",
+      options: [
+        "Close-ups and silence make you focus on character fear or doubt",
+        "Quick editing and bright lighting create energy and excitement",
+        "Wide shots and ambient sound keep the scene feeling distant or isolated",
+        "Slow pacing with music makes moments feel reflective or sad",
+      ],
+      correctAnswer: "Close-ups and silence make you focus on character fear or doubt",
+      correctFeedback:
+        "Correct. You identified a specific technique (close-ups and silence) and its emotional effect.",
+      partialFeedback:
+        "You're on the right track, but these all describe real techniques. Pick the one that matches ${second}'s tone best.",
+      incorrectFeedback:
+        "Not quite. Think about whether ${second} uses close or wide shots, and whether it's quiet or busy with sound.",
+    },
+    {
+      id: "q3",
       questionType: "short_answer",
-      prompt: `In one short sentence, what bigger issue could ${second} connect to: identity, power, family, technology, or something similar?`,
+      prompt: `In one sentence max, what is one big theme or concern ${third} explores? (Examples: identity, power, family, memory, belonging)`,
       focus: "Societal context",
-      hint: "Keep it short. Name one issue and, if you can, connect it to a scene, mood, or recurring image.",
+      hint: "Name one theme, then briefly say why the film cares about it.",
       explanation:
-        "A good answer does not need to be perfect. It just needs to connect the film to one larger cultural concern.",
+        "Theme is just the big idea a film keeps returning to. One clear idea is enough.",
       maxWords: 18,
-      placeholder: "Example: It could connect to identity and how the film shows people trying to belong.",
+      placeholder: "Example: It explores identity by showing characters trying to find where they belong.",
       acceptableAnswers: [
         "identity",
         "power",
@@ -197,34 +219,38 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
         "memory",
         "gender",
         "violence",
+        "belonging",
+        "loss",
       ],
       acceptableKeywords: [
-        "society",
-        "culture",
         "identity",
         "power",
-        "class",
-        "gender",
         "family",
         "technology",
+        "class",
+        "gender",
+        "memory",
+        "belonging",
+        "explores",
+        "shows",
       ],
       correctFeedback:
-        "Nice. That kind of short connection is enough to start building media-literacy habits.",
+        "Yes, exactly. You named a theme and connected it to the film.",
       partialFeedback:
-        "You are moving in the right direction. Try naming the bigger issue a little more directly.",
+        "You're on the right track. Add the theme word more directly (identity, power, family, etc.).",
       incorrectFeedback:
-        "A helpful next try is to name one big issue, like identity or power, instead of summarizing the plot.",
+        "Not quite. Pick one theme word from the examples, then add one sentence about why the film cares about it.",
     },
     {
-      id: "q3",
+      id: "q4",
       questionType: "short_answer",
-      prompt: `Using ${third}, finish this idea in one sentence: "${archetype.conceptName} matters because..."`,
+      prompt: `Pick one specific moment in ${first} and explain what ${archetype.conceptName.toLowerCase()} creates there in one sentence.`,
       focus: archetype.conceptName,
-      hint: "Use plain language. You only need one short reason and one small example.",
+      hint: "Name one choice (like lighting or framing) and what feeling it creates.",
       explanation:
-        "This final step is about transfer: using a film you know to explain why a film-studies idea is useful.",
-      maxWords: 20,
-      placeholder: "Example: ...because it helps explain how the movie's look shapes the mood.",
+        "This anchors the concept to something real you saw, not abstract theory.",
+      maxWords: 18,
+      placeholder: "The close-up on the character's face shows doubt and hesitation.",
       acceptableAnswers: archetype.conceptName
         .toLowerCase()
         .split(/[^a-z]+/)
@@ -234,19 +260,112 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
           .toLowerCase()
           .split(/[^a-z]+/)
           .filter(Boolean),
-        "mood",
-        "feeling",
-        "style",
-        "camera",
+        "close-up",
+        "lighting",
+        "silence",
         "sound",
+        "color",
+        "framing",
+        "editing",
+        "moment",
+      ],
+      correctFeedback:
+        "Correct. You grounded the concept in a specific choice and feeling.",
+      partialFeedback:
+        "You're on the right track. Name one specific film technique and what it helps the viewer notice or feel.",
+      incorrectFeedback:
+        "Not quite. Point to one specific choice on screen (like lighting, framing, or sound) and say what it creates.",
+    },
+    {
+      id: "q5",
+      questionType: "short_answer",
+      prompt: `In one sentence, name one technique ${second} uses and explain what it makes you pay attention to.`,
+      focus: "Guided interpretation",
+      hint: "Example: 'Close-ups make me focus on the character's expression.'",
+      explanation: "Technique and effect—that's all you need for a reading.",
+      maxWords: 16,
+      placeholder: "Close-ups on the character's face make me focus on their doubt.",
+      acceptableAnswers: ["close-up", "silence", "color", "pacing", "framing", "sound", "editing", "lighting"],
+      acceptableKeywords: ["close-up", "silence", "color", "pacing", "framing", "sound", "focus", "attention", "watch", "notice"],
+      correctFeedback:
+        "Yes, exactly. You named a technique and what it makes the viewer notice.",
+      partialFeedback:
+        "You're close. Make sure you name the specific technique (like close-up or silence) and what it creates.",
+      incorrectFeedback:
+        "Not quite. Try: '[Technique] makes me notice [what you pay attention to].'",
+    },
+    {
+      id: "q6",
+      questionType: "multiple_choice",
+      prompt: `Now apply what you learned from ${first}: in ${fourth}, what would you look for to understand its mood?`,
+      focus: "Transfer",
+      hint: "You know how to read one film. What would help you read another?",
+      explanation: "Transfer is just using skills you already have on a new film.",
+      options: [
+        "How lighting and framing create atmosphere and focus",
+        "The director's complete filmography and career history",
+        "A detailed plot summary from start to finish",
+        "The actor's background and other roles they've played",
+      ],
+      correctAnswer: "How lighting and framing create atmosphere and focus",
+      correctFeedback:
+        "Yes, exactly. You're applying the same reading skills to a new film.",
+      partialFeedback:
+        "You're on the right track. Focus on the techniques (like lighting and framing) that you used to understand the first film.",
+      incorrectFeedback:
+        "Not quite. Think about what helped you understand ${first}'s mood. That same thing works for any film.",
+    },
+    {
+      id: "q7",
+      questionType: "short_answer",
+      prompt: `Name one way ${archetype.conceptName} shows up in ${second}, just like it did in ${first}.`,
+      focus: "Transfer",
+      hint: "Name one technique in ${second} and how it's similar to ${first}.",
+      explanation: "Transfer means noticing the same pattern in a different film.",
+      maxWords: 18,
+      placeholder: "Both use close-ups and silence to show the character's doubt.",
+      acceptableAnswers: archetype.conceptName
+        .toLowerCase()
+        .split(/[^a-z]+/)
+        .filter(Boolean),
+      acceptableKeywords: [
+        ...archetype.conceptName
+          .toLowerCase()
+          .split(/[^a-z]+/)
+          .filter(Boolean),
+        "both",
+        "same",
+        "similar",
+        "close-up",
+        "silence",
+        "sound",
+        "framing",
         "color",
       ],
       correctFeedback:
-        "That works well. You connected a concept to a concrete effect, which is exactly the skill this quiz is practicing.",
+        "Correct. You found the pattern in both films.",
       partialFeedback:
-        "The idea is coming through. Tighten it by naming what the concept helps you notice in the film.",
+        "You're on the right track. Name the technique and say how both films use it similarly.",
       incorrectFeedback:
-        "Try one short reason the concept matters, then point to a visual or sound choice in the film.",
+        "Not quite. Mention one technique that appears in both films the same way.",
+    },
+    {
+      id: "q8",
+      questionType: "short_answer",
+      prompt: "In one sentence, name one technique or choice you will actively look for next time you watch a film.",
+      focus: "Reflection",
+      hint: "Be specific: lighting, framing, sound, editing, composition, or blocking.",
+      explanation: "The goal is to turn learning into a real viewing habit you can repeat.",
+      maxWords: 14,
+      placeholder: "I will look for how close-ups and silence show character doubt.",
+      acceptableAnswers: ["framing", "close-up", "color", "sound", "silence", "pacing", "editing", "blocking", "look for", "track"],
+      acceptableKeywords: ["look for", "track", "notice", "watch", "pay attention", "framing", "close-up", "color", "sound", "silence"],
+      correctFeedback:
+        "Correct. That's a concrete habit you can use in any film.",
+      partialFeedback:
+        "You're close. Name one specific technique clearly (like framing, sound, or color).",
+      incorrectFeedback:
+        "Not quite. Start with 'I will look for' and name one technique you saw in this quiz.",
     },
   ];
 }
@@ -281,11 +400,19 @@ export function buildFallbackLesson(films: LetterboxdFilm[]): TutorLessonPayload
 
 export function buildFallbackQuiz(films: LetterboxdFilm[]): TutorQuizPayload {
   const archetype = detectArchetype(films.map((film) => film.title));
+  const fromFilm = films[0]?.title ?? "your first favorite";
+  const applyToFilm = films[2]?.title ?? "another film in your Top 4";
 
   return {
     title: "Practice with your Top 4",
     intro:
-      "This short quiz is designed to be quick. Start by recognizing a film choice, then make one short interpretation, then finish with a brief transfer idea.",
+      "Eight quick prompts: easy recognition first, then guided interpretation, then transfer and reflection. Keep each short answer to one sentence.",
+    transferConcept: {
+      concept: archetype.conceptName,
+      fromFilm,
+      applyToFilm,
+      explanation: `${archetype.conceptName} means noticing how a craft choice shapes meaning in ${fromFilm}. Use that same lens when reading ${applyToFilm}.`,
+    },
     questions: buildQuizQuestions(films, archetype),
   };
 }

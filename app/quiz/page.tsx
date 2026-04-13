@@ -31,10 +31,32 @@ type Top4Response =
     };
 
 type QuizStatus = "idle" | "correct" | "partial" | "retry";
+type TutorTurn = {
+  role: "tutor" | "user";
+  text: string;
+};
+
+function isVagueAnswer(answer: string) {
+  const normalized = answer.trim().toLowerCase();
+  if (!normalized) return true;
+
+  const vaguePatterns = [
+    "idk",
+    "i dont know",
+    "i don't know",
+    "not sure",
+    "no idea",
+    "maybe",
+    "unsure",
+    "dont know",
+  ];
+
+  return vaguePatterns.some((pattern) => normalized === pattern || normalized.includes(pattern));
+}
 
 function evaluateShortAnswer(question: ShortAnswerQuestion, answer: string): QuizStatus {
   const normalizedAnswer = answer.trim().toLowerCase();
-  if (!normalizedAnswer) {
+  if (isVagueAnswer(normalizedAnswer)) {
     return "retry";
   }
 
@@ -57,10 +79,51 @@ function evaluateShortAnswer(question: ShortAnswerQuestion, answer: string): Qui
 }
 
 function getFeedback(question: QuizQuestion, status: QuizStatus) {
-  if (status === "correct") return question.correctFeedback;
-  if (status === "partial") return question.partialFeedback;
-  if (status === "retry") return question.incorrectFeedback;
+  if (status === "correct") {
+    return `${question.correctFeedback} Next step: keep using this lens on one scene.`;
+  }
+
+  if (status === "partial") {
+    return `${question.partialFeedback} One refinement: answer in one sentence with one concrete cue.`;
+  }
+
+  if (status === "retry") {
+    if (question.questionType === "multiple_choice") {
+      return `${question.incorrectFeedback} Simpler follow-up: which option names a film technique, not plot summary?`;
+    }
+
+    return `${question.incorrectFeedback} Simpler follow-up: use this frame -> "I notice [technique] because [effect]."`;
+  }
+
   return null;
+}
+
+function buildShortAnswerTutorMessage(
+  question: ShortAnswerQuestion,
+  status: QuizStatus,
+  phase: "first_reply" | "followup_reply"
+) {
+  if (phase === "first_reply") {
+    if (status === "correct") {
+      return `${question.correctFeedback} You've got it. Ready for the next question?`;
+    }
+
+    if (status === "partial") {
+      return `${question.partialFeedback}`;
+    }
+
+    return `${question.incorrectFeedback}`;
+  }
+
+  if (status === "correct") {
+    return `${question.correctFeedback} Great. You've nailed this one. Move on when you're ready.`;
+  }
+
+  if (status === "partial") {
+    return `${question.partialFeedback}`;
+  }
+
+  return "Here's the core idea: name one specific technique (like framing, sound, or color) and what feeling or attention it creates.";
 }
 
 export default function QuizPage() {
@@ -73,6 +136,8 @@ export default function QuizPage() {
   const [selectedOption, setSelectedOption] = useState("");
   const [shortAnswer, setShortAnswer] = useState("");
   const [status, setStatus] = useState<QuizStatus>("idle");
+  const [shortAnswerThread, setShortAnswerThread] = useState<TutorTurn[]>([]);
+  const [awaitingFollowUp, setAwaitingFollowUp] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -127,6 +192,8 @@ export default function QuizPage() {
           setSelectedOption("");
           setShortAnswer("");
           setStatus("idle");
+          setShortAnswerThread([]);
+          setAwaitingFollowUp(false);
           setIsLoading(false);
           return;
         }
@@ -149,6 +216,22 @@ export default function QuizPage() {
 
   const feedback = activeQuestion ? getFeedback(activeQuestion, status) : null;
 
+  useEffect(() => {
+    if (!activeQuestion || activeQuestion.questionType !== "short_answer") {
+      setShortAnswerThread([]);
+      setAwaitingFollowUp(false);
+      return;
+    }
+
+    setShortAnswerThread([
+      {
+        role: "tutor",
+        text: activeQuestion.prompt,
+      },
+    ]);
+    setAwaitingFollowUp(false);
+  }, [activeQuestion]);
+
   function handleSubmitAnswer() {
     if (!activeQuestion) return;
 
@@ -162,7 +245,67 @@ export default function QuizPage() {
       return;
     }
 
-    setStatus(evaluateShortAnswer(activeQuestion, shortAnswer));
+    const trimmedAnswer = shortAnswer.trim();
+    if (!trimmedAnswer) {
+      setStatus("retry");
+      setShortAnswerThread((current) => [
+        ...current,
+        {
+          role: "tutor",
+          text: "No worries. Give me one short sentence and we can build from there.",
+        },
+      ]);
+      return;
+    }
+
+    const evaluation = evaluateShortAnswer(activeQuestion, trimmedAnswer);
+
+    setShortAnswerThread((current) => {
+      const withUserTurn: TutorTurn[] = [
+        ...current,
+        {
+          role: "user",
+          text: trimmedAnswer,
+        },
+      ];
+
+      if (!awaitingFollowUp) {
+        const tutorReply = buildShortAnswerTutorMessage(activeQuestion, evaluation, "first_reply");
+        return [
+          ...withUserTurn,
+          {
+            role: "tutor",
+            text: tutorReply,
+          },
+        ];
+      }
+
+      const tutorReply = buildShortAnswerTutorMessage(activeQuestion, evaluation, "followup_reply");
+      return [
+        ...withUserTurn,
+        {
+          role: "tutor",
+          text: tutorReply,
+        },
+      ];
+    });
+
+    setShortAnswer("");
+
+    if (!awaitingFollowUp) {
+      if (evaluation === "correct") {
+        setStatus("correct");
+        setAwaitingFollowUp(false);
+        return;
+      }
+
+      setStatus(evaluation);
+      setAwaitingFollowUp(true);
+      return;
+    }
+
+    setAwaitingFollowUp(false);
+    setStatus("correct");
   }
 
   function handleNextQuestion() {
@@ -173,6 +316,8 @@ export default function QuizPage() {
     setSelectedOption("");
     setShortAnswer("");
     setStatus("idle");
+    setShortAnswerThread([]);
+    setAwaitingFollowUp(false);
   }
 
   return (
@@ -291,6 +436,17 @@ export default function QuizPage() {
 
                   <p className="text-sm leading-7 text-[var(--text-soft)]">{quizData.quiz.intro}</p>
 
+                  {questionIndex === 5 ? (
+                    <div className="rounded-[1.2rem] border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/10 px-4 py-3 text-sm leading-6 text-[#d4ebfa]">
+                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
+                        Concept before transfer
+                      </p>
+                      <p className="mt-2">
+                        {quizData.quiz.transferConcept.explanation}
+                      </p>
+                    </div>
+                  ) : null}
+
                   {quizData.warning ? (
                     <div className="rounded-[1.2rem] border border-[var(--accent-orange)]/25 bg-[var(--accent-orange)]/10 px-4 py-3 text-sm leading-6 text-[#ffd9b8]">
                       {quizData.warning}
@@ -322,11 +478,30 @@ export default function QuizPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
+                      <div className="space-y-2 rounded-[1.1rem] border border-white/10 bg-white/5 p-3">
+                        {shortAnswerThread.map((turn, index) => (
+                          <div
+                            key={`${turn.role}-${index}`}
+                            className={`max-w-[92%] rounded-[0.9rem] px-3 py-2 text-sm leading-6 ${
+                              turn.role === "tutor"
+                                ? "border border-white/10 bg-black/20 text-[var(--text-soft)]"
+                                : "ml-auto border border-[var(--accent-green)]/30 bg-[var(--accent-green)]/12 text-white"
+                            }`}
+                          >
+                            {turn.text}
+                          </div>
+                        ))}
+                      </div>
+
                       <textarea
                         value={shortAnswer}
                         onChange={(event) => setShortAnswer(event.target.value)}
-                        placeholder={activeQuestion.placeholder}
+                        placeholder={
+                          awaitingFollowUp
+                            ? "Reply to the tutor follow-up in one short sentence."
+                            : activeQuestion.placeholder
+                        }
                         className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
                       />
                       <p className="text-xs text-[var(--text-muted)]">
@@ -346,7 +521,7 @@ export default function QuizPage() {
                     <button
                       type="button"
                       onClick={handleNextQuestion}
-                      disabled={status === "idle" || questionIndex >= quizData.quiz.questions.length - 1}
+                      disabled={status !== "correct" || questionIndex >= quizData.quiz.questions.length - 1}
                       className="rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Next question
@@ -372,7 +547,7 @@ export default function QuizPage() {
                     </div>
                   </div>
 
-                  {feedback ? (
+                  {feedback && activeQuestion.questionType === "multiple_choice" ? (
                     <div
                       className={`rounded-[1.2rem] border px-4 py-4 text-sm leading-7 ${
                         status === "correct"

@@ -76,10 +76,21 @@ const quizSchema = {
     properties: {
       title: { type: "string" },
       intro: { type: "string" },
+      transferConcept: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          concept: { type: "string" },
+          fromFilm: { type: "string" },
+          applyToFilm: { type: "string" },
+          explanation: { type: "string" },
+        },
+        required: ["concept", "fromFilm", "applyToFilm", "explanation"],
+      },
       questions: {
         type: "array",
-        minItems: 3,
-        maxItems: 3,
+        minItems: 8,
+        maxItems: 8,
         items: {
           anyOf: [
             {
@@ -87,7 +98,7 @@ const quizSchema = {
               additionalProperties: false,
               properties: {
                 id: { type: "string" },
-                questionType: { const: "multiple_choice" },
+                questionType: { type: "string", enum: ["multiple_choice"] },
                 prompt: { type: "string" },
                 focus: { type: "string" },
                 hint: { type: "string" },
@@ -122,7 +133,7 @@ const quizSchema = {
               additionalProperties: false,
               properties: {
                 id: { type: "string" },
-                questionType: { const: "short_answer" },
+                questionType: { type: "string", enum: ["short_answer"] },
                 prompt: { type: "string" },
                 focus: { type: "string" },
                 hint: { type: "string" },
@@ -165,7 +176,7 @@ const quizSchema = {
         },
       },
     },
-    required: ["title", "intro", "questions"],
+    required: ["title", "intro", "transferConcept", "questions"],
   },
 } as const;
 
@@ -191,19 +202,21 @@ function buildQuizPrompt(films: LetterboxdFilm[]) {
   return [
     "You are Mise-en-Lens, a beginner-friendly film tutor.",
     "Return JSON only.",
-    "Create a very lightweight, approachable quiz personalized to the user's Top 4 films.",
-    "The quiz must be answerable quickly by a beginner.",
-    "Questions must be answerable in under 10 seconds each.",
-    "Avoid requiring plot recall, broad essays, polished prose, or deep prior film-theory knowledge.",
-    "Prefer recognition over explanation.",
-    "Question progression:",
-    "1. easy recognition question",
-    "2. short guided interpretation",
-    "3. brief transfer or reflection question",
-    "Use one multiple_choice question first, then short_answer questions with tight scaffolding.",
-    "Short answers should allow partial credit from short phrases.",
-    "Keep wording clear, short, and beginner-friendly.",
-    "Personalize to the user's films without becoming so specific that the quiz becomes fact-fragile.",
+    "Create a lightweight 8-question quiz personalized to the user's Top 4 films.",
+    "Do not generate lesson content.",
+    "Return only: title, intro, transferConcept, questions.",
+    "Keep all text concise and beginner-friendly.",
+    "Question mix: 3 multiple_choice and 5 short_answer.",
+    "Short-answer prompts must request one sentence max.",
+    "Progression:",
+    "Q1-Q2 very easy recognition (multiple choice).",
+    "Q3-Q5 guided interpretation with clear scaffolding.",
+    "Q6-Q7 transfer: apply an idea from one film to a different film.",
+    "Q8 short reflection (one sentence max).",
+    "Before Q6, include transferConcept with 1-2 sentence explanation tied to one film and applied to another film.",
+    "Avoid long explanations, deep theory, and plot-fragile trivia.",
+    "For each question include concise hint, explanation, and feedback strings.",
+    "Feedback behavior: vague/idk -> simpler follow-up question; partial -> acknowledge + one refinement question; correct -> brief confirmation + one-sentence expansion.",
     "Top 4:",
     lines,
   ].join("\n");
