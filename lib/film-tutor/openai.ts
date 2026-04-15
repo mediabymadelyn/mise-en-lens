@@ -189,12 +189,15 @@ function buildWikiReferenceBlock(
   for (const film of films) {
     const ctx = wikiContext.get(film.title);
     if (!ctx) continue;
-    blocks.push(`Reference context for "${film.title}":\n${ctx.extract}`);
+    const parts = [`Reference context for "${film.title}":\n${ctx.extract}`];
+    if (ctx.plot) parts.push(`Plot synopsis:\n${ctx.plot}`);
+    if (ctx.themes) parts.push(`Themes:\n${ctx.themes}`);
+    blocks.push(parts.join("\n\n"));
   }
   if (blocks.length === 0) return "";
   return (
     "\n\nUse the reference context below for factual grounding. Do not invent plot details, director names, release years, or cast information that is not supported by the reference context or your confident knowledge.\n\n" +
-    blocks.join("\n\n")
+    blocks.join("\n\n---\n\n")
   );
 }
 

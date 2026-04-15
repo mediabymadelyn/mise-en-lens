@@ -138,9 +138,12 @@ function buildFilmNote(
       ? `This pick likely acts as a cornerstone for your taste, which makes it a useful starting point for discussing how film style shapes interpretation.`
       : `This selection reinforces the pattern in your Top 4 by adding another example of how mood, genre, and point of view can teach us to read movies more closely.`;
 
-  const summary = wikiCtx?.extract
-    ? `${wikiCtx.extract.split(". ").slice(0, 2).join(". ")}. This makes it a useful reference point for studying how film style shapes interpretation.`
-    : defaultSummary;
+  let summary = defaultSummary;
+  if (wikiCtx?.plot) {
+    summary = `${wikiCtx.plot.split(". ").slice(0, 3).join(". ")}. This makes it a useful reference point for studying how film style shapes interpretation.`;
+  } else if (wikiCtx?.extract) {
+    summary = `${wikiCtx.extract.split(". ").slice(0, 2).join(". ")}. This makes it a useful reference point for studying how film style shapes interpretation.`;
+  }
 
   return {
     title: film.title,
@@ -389,17 +392,26 @@ const FILM_KEYWORDS = new Set([
   "documentary", "narrative", "protagonist", "antagonist", "soundtrack",
 ]);
 
+const STOP_WORDS = new Set([
+  "the", "and", "for", "its", "his", "her", "was", "are", "has", "had",
+  "but", "not", "this", "that", "with", "from", "into", "also", "been",
+  "they", "their", "which", "when", "where", "who", "how", "all", "each",
+  "she", "him", "them", "than", "then", "only", "very", "can", "will",
+]);
+
 function extractWikiKeywords(extract: string): string[] {
   const words = extract.split(/[\s,;:.!?()\[\]"]+/).filter(Boolean);
   const keywords = new Set<string>();
 
   for (const word of words) {
     const lower = word.toLowerCase();
+    if (lower.length < 3 || STOP_WORDS.has(lower)) continue;
+
     if (FILM_KEYWORDS.has(lower)) {
       keywords.add(lower);
       continue;
     }
-    if (word.length >= 3 && word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase()) {
+    if (word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase()) {
       keywords.add(lower);
     }
   }
@@ -415,9 +427,10 @@ function enrichQuizKeywords(
   const allWikiKeywords: string[] = [];
   for (const film of films) {
     const ctx = wikiContext.get(film.title);
-    if (ctx) {
-      allWikiKeywords.push(...extractWikiKeywords(ctx.extract));
-    }
+    if (!ctx) continue;
+    allWikiKeywords.push(...extractWikiKeywords(ctx.extract));
+    if (ctx.plot) allWikiKeywords.push(...extractWikiKeywords(ctx.plot));
+    if (ctx.themes) allWikiKeywords.push(...extractWikiKeywords(ctx.themes));
   }
 
   if (allWikiKeywords.length === 0) return questions;
