@@ -139,7 +139,7 @@ const quizSchema = {
                 focus: { type: "string" },
                 hint: { type: "string" },
                 explanation: { type: "string" },
-                maxWords: { type: "number" },
+                maxWords: { type: "number", minimum: 12, maximum: 20 },
                 placeholder: { type: "string" },
                 acceptableAnswers: {
                   type: "array",
@@ -246,6 +246,7 @@ function buildQuizPrompt(
     "For each question include concise hint, explanation, and feedback strings.",
     "Feedback behavior: vague/idk -> simpler follow-up question; partial -> acknowledge + one refinement question; correct -> brief confirmation + one-sentence expansion.",
     "For short_answer questions, populate acceptableAnswers and acceptableKeywords using factual details from the reference context (character names, director names, specific themes, years, techniques mentioned).",
+    "For every short_answer question, maxWords must be between 12 and 20 — enough for one full sentence with a concrete example. Never set maxWords below 12.",
     "Top 4:",
     lines,
     buildWikiReferenceBlock(films, wikiContext),

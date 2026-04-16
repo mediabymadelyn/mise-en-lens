@@ -42,6 +42,13 @@ export async function POST(request: Request) {
       if (mode === "quiz") {
         const quiz = await generateQuizWithOpenAI(films, wikiContext);
 
+        // DIAGNOSTIC: log maxWords for each short-answer question before returning
+        for (const q of quiz.questions) {
+          if (q.questionType === "short_answer") {
+            console.log(`[quiz diagnostic] question ${q.id} maxWords=${q.maxWords}`);
+          }
+        }
+
         return Response.json(
           {
             ok: true,

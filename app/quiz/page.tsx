@@ -505,7 +505,7 @@ export default function QuizPage() {
                         className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
                       />
                       <p className="text-xs text-[var(--text-muted)]">
-                        Keep it to about {activeQuestion.maxWords} words or fewer.
+                        Keep it to about {activeQuestion.maxWords < 8 ? 15 : activeQuestion.maxWords} words or fewer.
                       </p>
                     </div>
                   )}
