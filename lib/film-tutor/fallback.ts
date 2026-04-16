@@ -1,5 +1,5 @@
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
-import type { QuizQuestion, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { QuizQuestion, TransferSequence, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const TITLE_KEYWORDS = {
@@ -460,29 +460,138 @@ export function buildFallbackLesson(
   };
 }
 
+function buildTransferSequence(
+  films: LetterboxdFilm[],
+  archetype: TasteArchetype,
+  wikiContext?: Map<string, WikiFilmContext | null>
+): TransferSequence {
+  const filmA = films[0]?.title ?? "your first favorite";
+  const filmB = films[1]?.title ?? "another film in your Top 4";
+  const ctxA = wikiContext?.get(filmA);
+  const ctxB = wikiContext?.get(filmB);
+
+  const concept = archetype.conceptName;
+
+  // Build teach statement from Film A's wiki context when available
+  let teachStatement: string;
+  let verifyCorrectAnswer: string;
+  let applyKeywords: string[];
+
+  if (ctxA?.plot || ctxA?.extract) {
+    const source = ctxA.plot ?? ctxA.extract;
+    // Take first two sentences of plot/extract as the concrete example
+    const sentences = source.split(/(?<=[.!?])\s+/);
+    const exampleSentence = sentences.slice(0, 2).join(" ");
+    teachStatement = `In ${filmA}, ${concept.toLowerCase()} shapes how the viewer experiences each scene. ` +
+      `You can see this when: ${exampleSentence.slice(0, 200)}`;
+    verifyCorrectAnswer = `A moment in ${filmA} where ${concept.toLowerCase()} directs your attention`;
+  } else {
+    // Generic fallback when wiki is missing
+    teachStatement = `In ${filmA}, ${concept.toLowerCase()} shows up as specific craft choices that guide what you notice and feel. ` +
+      `Look for moments where the director uses framing, sound, or color to focus your attention on something specific. ` +
+      `These are the moments where technique becomes meaning.`;
+    verifyCorrectAnswer = `A moment in ${filmA} where a craft choice guides your attention`;
+  }
+
+  // Build apply keywords from Film B's wiki context when available
+  if (ctxB?.plot || ctxB?.themes) {
+    const source = (ctxB.plot ?? "") + " " + (ctxB.themes ?? "");
+    applyKeywords = extractWikiKeywords(source).slice(0, 8);
+  } else {
+    applyKeywords = ["framing", "silence", "color", "sound", "close-up", "lighting"];
+  }
+
+  return {
+    concept,
+    filmA,
+    filmB,
+    teachStatement,
+    verifyQuestionId: "q5",
+    applyQuestionId: "q6",
+    // Store derived values on the sequence for use when building Q5/Q6
+    _verifyCorrectAnswer: verifyCorrectAnswer,
+    _applyKeywords: applyKeywords,
+  } as TransferSequence & { _verifyCorrectAnswer: string; _applyKeywords: string[] };
+}
+
 export function buildFallbackQuiz(
   films: LetterboxdFilm[],
   wikiContext?: Map<string, WikiFilmContext | null>
 ): TutorQuizPayload {
   const archetype = detectArchetype(films.map((film) => film.title));
-  const fromFilm = films[0]?.title ?? "your first favorite";
-  const applyToFilm = films[2]?.title ?? "another film in your Top 4";
+  const filmA = films[0]?.title ?? "your first favorite";
+  const filmB = films[1]?.title ?? "another film in your Top 4";
 
   const baseQuestions = buildQuizQuestions(films, archetype);
-  const questions = wikiContext
+  const enriched = wikiContext
     ? enrichQuizKeywords(baseQuestions, films, wikiContext)
     : baseQuestions;
+
+  const transferSeq = buildTransferSequence(films, archetype, wikiContext);
+  const { _verifyCorrectAnswer, _applyKeywords } = transferSeq as TransferSequence & {
+    _verifyCorrectAnswer: string;
+    _applyKeywords: string[];
+  };
+
+  // Overwrite Q5 (verify) and Q6 (apply) with TransferSequence-specific content
+  const questions: QuizQuestion[] = enriched.map((q) => {
+    if (q.id === "q5") {
+      return {
+        id: "q5",
+        questionType: "multiple_choice",
+        prompt: `Which of these in ${filmA} is an example of ${transferSeq.concept.toLowerCase()}?`,
+        focus: "Transfer",
+        hint: "The correct answer should match something mentioned in the teach block above.",
+        explanation: "The verify step checks that you can recognize the concept in the film you just learned about.",
+        options: [
+          _verifyCorrectAnswer,
+          `A plot twist that reframes the entire story`,
+          `Background music that signals the genre`,
+          `Dialogue that explains a character's motivation directly`,
+        ],
+        correctAnswer: _verifyCorrectAnswer,
+        correctFeedback: `Correct. That's ${transferSeq.concept.toLowerCase()} in action in ${filmA}.`,
+        partialFeedback: "Close. Look for the option that matches what the teach block described.",
+        incorrectFeedback: "Not quite. Re-read the teach block above — the correct answer references something mentioned there.",
+      } satisfies QuizQuestion;
+    }
+
+    if (q.id === "q6") {
+      const applyKeywords = _applyKeywords.length > 0
+        ? _applyKeywords
+        : ["framing", "silence", "color", "sound", "close-up", "lighting"];
+      return {
+        id: "q6",
+        questionType: "short_answer",
+        prompt: `Now find ${transferSeq.concept.toLowerCase()} in ${filmB} — name one specific moment or technique, in one sentence.`,
+        focus: "Transfer",
+        hint: `Use the same lens from ${filmA}, but apply it to ${filmB}.`,
+        explanation: "Transfer means taking what you learned and finding it somewhere new.",
+        maxWords: 18,
+        placeholder: `In ${filmB}, a close-up during a key scene creates the same kind of focus.`,
+        acceptableAnswers: applyKeywords.slice(0, 4),
+        acceptableKeywords: applyKeywords,
+        correctFeedback: `Correct. You applied ${transferSeq.concept.toLowerCase()} to a new film.`,
+        partialFeedback: `Close. Name the specific technique in ${filmB} more clearly and say what it creates.`,
+        incorrectFeedback: `Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.`,
+      } satisfies QuizQuestion;
+    }
+
+    return q;
+  });
+
+  // Strip the private fields before returning
+  const { _verifyCorrectAnswer: _v, _applyKeywords: _a, ...cleanTransfer } = transferSeq as TransferSequence & {
+    _verifyCorrectAnswer: string;
+    _applyKeywords: string[];
+  };
+  void _v; void _a;
 
   return {
     title: "Practice with your Top 4",
     intro:
       "Six prompts: two recognition questions, two interpretation questions, then a transfer sequence across two films. Keep each short answer to one sentence.",
-    transferConcept: {
-      concept: archetype.conceptName,
-      fromFilm,
-      applyToFilm,
-      explanation: `${archetype.conceptName} means noticing how a craft choice shapes meaning in ${fromFilm}. Use that same lens when reading ${applyToFilm}.`,
-    },
+    transferConcept: cleanTransfer,
     questions,
   };
 }

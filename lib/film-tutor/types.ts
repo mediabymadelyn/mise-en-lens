@@ -29,11 +29,13 @@ export type ShortAnswerQuestion = QuizQuestionBase & {
 
 export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;
 
-export type QuizTransferConcept = {
+export type TransferSequence = {
   concept: string;
-  fromFilm: string;
-  applyToFilm: string;
-  explanation: string;
+  filmA: string;
+  filmB: string;
+  teachStatement: string;  // 2-3 sentences rendered above Q5
+  verifyQuestionId: string; // references Q5 by id
+  applyQuestionId: string;  // references Q6 by id
 };
 
 export type TutorLessonPayload = {
@@ -61,7 +63,7 @@ export type TutorLessonPayload = {
 export type TutorQuizPayload = {
   title: string;
   intro: string;
-  transferConcept: QuizTransferConcept;
+  transferConcept: TransferSequence;
   questions: QuizQuestion[];
 };
 

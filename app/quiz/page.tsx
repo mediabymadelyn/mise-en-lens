@@ -436,13 +436,16 @@ export default function QuizPage() {
 
                   <p className="text-sm leading-7 text-[var(--text-soft)]">{quizData.quiz.intro}</p>
 
-                  {questionIndex === 5 ? (
+                  {questionIndex === 4 ? (
                     <div className="rounded-[1.2rem] border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/10 px-4 py-3 text-sm leading-6 text-[#d4ebfa]">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
-                        Concept before transfer
+                        Learn this first
+                      </p>
+                      <p className="mt-1 text-[10px] font-semibold tracking-[0.14em] uppercase text-[var(--accent-blue)]/60">
+                        {quizData.quiz.transferConcept.concept} &mdash; {quizData.quiz.transferConcept.filmA}
                       </p>
                       <p className="mt-2">
-                        {quizData.quiz.transferConcept.explanation}
+                        {quizData.quiz.transferConcept.teachStatement}
                       </p>
                     </div>
                   ) : null}
