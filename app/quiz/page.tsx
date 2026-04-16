@@ -30,114 +30,91 @@ type Top4Response =
       username?: string;
     };
 
-type QuizStatus = "idle" | "correct" | "partial" | "retry";
+// Per-question state machine statuses
+type QuestionStatus = "idle" | "correct" | "partial" | "confused" | "revealed";
+
 type TutorTurn = {
   role: "tutor" | "user";
   text: string;
 };
 
-function isVagueAnswer(answer: string) {
-  const normalized = answer.trim().toLowerCase();
-  if (!normalized) return true;
+const FILM_VOCAB = new Set([
+  "framing", "close-up", "closeup", "wide shot", "long shot", "tracking",
+  "montage", "editing", "cut", "cinematography", "lighting", "color",
+  "sound", "silence", "score", "pacing", "composition", "blocking",
+  "performance", "theme", "symbol", "motif", "genre", "atmosphere",
+  "tension", "mood", "tone", "technique", "shot", "scene",
+]);
 
-  const vaguePatterns = [
-    "idk",
-    "i dont know",
-    "i don't know",
-    "not sure",
-    "no idea",
-    "maybe",
-    "unsure",
-    "dont know",
-  ];
-
-  return vaguePatterns.some((pattern) => normalized === pattern || normalized.includes(pattern));
+function isVagueAnswer(answer: string): boolean {
+  const n = answer.trim().toLowerCase();
+  if (!n) return true;
+  return [
+    "idk", "i dont know", "i don't know", "not sure",
+    "no idea", "maybe", "unsure", "dont know",
+  ].some((p) => n === p || n.includes(p));
 }
 
-function evaluateShortAnswer(question: ShortAnswerQuestion, answer: string): QuizStatus {
-  const normalizedAnswer = answer.trim().toLowerCase();
-  if (isVagueAnswer(normalizedAnswer)) {
-    return "retry";
+function isOffTopic(
+  answer: string,
+  question: ShortAnswerQuestion,
+  filmTitles: string[]
+): boolean {
+  const n = answer.trim().toLowerCase();
+  if (question.acceptableKeywords.some((k) => n.includes(k.toLowerCase()))) return false;
+  if (filmTitles.some((t) => n.includes(t.toLowerCase()))) return false;
+  return ![...FILM_VOCAB].some((w) => n.includes(w));
+}
+
+function evaluateShortAnswer(
+  answer: string,
+  question: ShortAnswerQuestion,
+  filmTitles: string[]
+): "correct" | "partial" | "confused" {
+  const n = answer.trim().toLowerCase();
+
+  if (isVagueAnswer(n) || isOffTopic(n, question, filmTitles)) {
+    return "confused";
   }
 
-  const acceptableAnswerHit = question.acceptableAnswers.some((item) =>
-    normalizedAnswer.includes(item.toLowerCase())
-  );
-  const keywordMatches = question.acceptableKeywords.filter((keyword) =>
-    normalizedAnswer.includes(keyword.toLowerCase())
+  const acceptableHit = question.acceptableAnswers.some((a) => n.includes(a.toLowerCase()));
+  const keywordMatches = question.acceptableKeywords.filter((k) =>
+    n.includes(k.toLowerCase())
   ).length;
 
-  if (acceptableAnswerHit || keywordMatches >= Math.max(1, Math.ceil(question.acceptableKeywords.length / 3))) {
+  if (
+    acceptableHit ||
+    keywordMatches >= Math.max(1, Math.ceil(question.acceptableKeywords.length / 3))
+  ) {
     return "correct";
   }
 
-  if (keywordMatches >= 1 || normalizedAnswer.split(/\s+/).filter(Boolean).length >= 4) {
+  if (keywordMatches >= 1 || n.split(/\s+/).filter(Boolean).length >= 4) {
     return "partial";
   }
 
-  return "retry";
-}
-
-function getFeedback(question: QuizQuestion, status: QuizStatus) {
-  if (status === "correct") {
-    return `${question.correctFeedback} Next step: keep using this lens on one scene.`;
-  }
-
-  if (status === "partial") {
-    return `${question.partialFeedback} One refinement: answer in one sentence with one concrete cue.`;
-  }
-
-  if (status === "retry") {
-    if (question.questionType === "multiple_choice") {
-      return `${question.incorrectFeedback} Simpler follow-up: which option names a film technique, not plot summary?`;
-    }
-
-    return `${question.incorrectFeedback} Simpler follow-up: use this frame -> "I notice [technique] because [effect]."`;
-  }
-
-  return null;
-}
-
-function buildShortAnswerTutorMessage(
-  question: ShortAnswerQuestion,
-  status: QuizStatus,
-  phase: "first_reply" | "followup_reply"
-) {
-  if (phase === "first_reply") {
-    if (status === "correct") {
-      return `${question.correctFeedback} You've got it. Ready for the next question?`;
-    }
-
-    if (status === "partial") {
-      return `${question.partialFeedback}`;
-    }
-
-    return `${question.incorrectFeedback}`;
-  }
-
-  if (status === "correct") {
-    return `${question.correctFeedback} Great. You've nailed this one. Move on when you're ready.`;
-  }
-
-  if (status === "partial") {
-    return `${question.partialFeedback}`;
-  }
-
-  return "Here's the core idea: name one specific technique (like framing, sound, or color) and what feeling or attention it creates.";
+  return "confused";
 }
 
 export default function QuizPage() {
   const [username, setUsername] = useState("");
-
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quizData, setQuizData] = useState<TutorQuizResponse | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+
+  // MC state
   const [selectedOption, setSelectedOption] = useState("");
+
+  // Short-answer state
   const [shortAnswer, setShortAnswer] = useState("");
-  const [status, setStatus] = useState<QuizStatus>("idle");
   const [shortAnswerThread, setShortAnswerThread] = useState<TutorTurn[]>([]);
-  const [awaitingFollowUp, setAwaitingFollowUp] = useState(false);
+
+  // Per-question state machine
+  const [questionStatus, setQuestionStatus] = useState<QuestionStatus>("idle");
+  const [attempts, setAttempts] = useState(0);
+  const [showFallbackMC, setShowFallbackMC] = useState(false);
+  const [fallbackMCSelected, setFallbackMCSelected] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -158,9 +135,7 @@ export default function QuizPage() {
       try {
         const scrapeResponse = await fetch("/api/letterboxd/top4", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ input: username }),
         });
 
@@ -173,9 +148,7 @@ export default function QuizPage() {
 
         const tutorResponse = await fetch("/api/tutor", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "quiz",
             username: scrapePayload.username,
@@ -189,11 +162,6 @@ export default function QuizPage() {
         if (tutorPayload.ok && tutorPayload.mode === "quiz") {
           setQuizData(tutorPayload);
           setQuestionIndex(0);
-          setSelectedOption("");
-          setShortAnswer("");
-          setStatus("idle");
-          setShortAnswerThread([]);
-          setAwaitingFollowUp(false);
           setIsLoading(false);
           return;
         }
@@ -209,116 +177,159 @@ export default function QuizPage() {
     void loadQuiz();
   }, [username]);
 
-  const activeQuestion = useMemo(() => {
+  const activeQuestion = useMemo((): QuizQuestion | null => {
     if (!quizData) return null;
     return quizData.quiz.questions[questionIndex] ?? null;
   }, [quizData, questionIndex]);
 
-  const feedback = activeQuestion ? getFeedback(activeQuestion, status) : null;
+  const filmTitles = useMemo(
+    () => quizData?.films.map((f) => f.title) ?? [],
+    [quizData]
+  );
 
+  // Reset all per-question state when the active question changes
   useEffect(() => {
-    if (!activeQuestion || activeQuestion.questionType !== "short_answer") {
-      setShortAnswerThread([]);
-      setAwaitingFollowUp(false);
-      return;
-    }
+    setSelectedOption("");
+    setShortAnswer("");
+    setQuestionStatus("idle");
+    setAttempts(0);
+    setShowFallbackMC(false);
+    setFallbackMCSelected("");
 
-    setShortAnswerThread([
-      {
-        role: "tutor",
-        text: activeQuestion.prompt,
-      },
-    ]);
-    setAwaitingFollowUp(false);
+    if (activeQuestion?.questionType === "short_answer") {
+      setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
+    } else {
+      setShortAnswerThread([]);
+    }
   }, [activeQuestion]);
 
   function handleSubmitAnswer() {
     if (!activeQuestion) return;
 
     if (activeQuestion.questionType === "multiple_choice") {
-      if (!selectedOption) {
-        setStatus("retry");
-        return;
-      }
-
-      setStatus(selectedOption === activeQuestion.correctAnswer ? "correct" : "retry");
+      if (!selectedOption) return;
+      setQuestionStatus(selectedOption === activeQuestion.correctAnswer ? "correct" : "confused");
       return;
     }
 
-    const trimmedAnswer = shortAnswer.trim();
-    if (!trimmedAnswer) {
-      setStatus("retry");
-      setShortAnswerThread((current) => [
-        ...current,
-        {
-          role: "tutor",
-          text: "No worries. Give me one short sentence and we can build from there.",
-        },
+    // Short answer — handle fallback MC submission separately
+    if (showFallbackMC) return;
+
+    const trimmed = shortAnswer.trim();
+    if (!trimmed) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "tutor", text: "No worries. Give me one short sentence and we can build from there." },
       ]);
       return;
     }
 
-    const evaluation = evaluateShortAnswer(activeQuestion, trimmedAnswer);
+    const evaluation = evaluateShortAnswer(trimmed, activeQuestion, filmTitles);
+    const newAttempts = attempts + 1;
 
-    setShortAnswerThread((current) => {
-      const withUserTurn: TutorTurn[] = [
-        ...current,
-        {
-          role: "user",
-          text: trimmedAnswer,
-        },
-      ];
-
-      if (!awaitingFollowUp) {
-        const tutorReply = buildShortAnswerTutorMessage(activeQuestion, evaluation, "first_reply");
-        return [
-          ...withUserTurn,
-          {
-            role: "tutor",
-            text: tutorReply,
-          },
-        ];
-      }
-
-      const tutorReply = buildShortAnswerTutorMessage(activeQuestion, evaluation, "followup_reply");
-      return [
-        ...withUserTurn,
-        {
-          role: "tutor",
-          text: tutorReply,
-        },
-      ];
-    });
-
+    setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
     setShortAnswer("");
+    setAttempts(newAttempts);
 
-    if (!awaitingFollowUp) {
-      if (evaluation === "correct") {
-        setStatus("correct");
-        setAwaitingFollowUp(false);
-        return;
-      }
-
-      setStatus(evaluation);
-      setAwaitingFollowUp(true);
+    if (evaluation === "correct") {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "tutor", text: activeQuestion.correctFeedback },
+      ]);
+      setQuestionStatus("correct");
       return;
     }
 
-    setAwaitingFollowUp(false);
-    setStatus("correct");
+    // Second attempt exhausted
+    if (newAttempts >= 2) {
+      // Still confused at attempt 2 → offer fallback MC
+      if (evaluation === "confused" || questionStatus === "confused") {
+        setShortAnswerThread((cur) => [
+          ...cur,
+          { role: "tutor", text: "Let me give you some options to work with." },
+        ]);
+        setShowFallbackMC(true);
+        return;
+      }
+      // Partial at attempt 2 → reveal
+      const revealed = activeQuestion.acceptableAnswers[0] ?? "a specific technique or theme";
+      setShortAnswerThread((cur) => [
+        ...cur,
+        {
+          role: "tutor",
+          text: `The answer is: ${revealed}. ${activeQuestion.incorrectFeedback} Let's keep going.`,
+        },
+      ]);
+      setQuestionStatus("revealed");
+      return;
+    }
+
+    // First attempt: enter scaffold or partial mode
+    if (evaluation === "confused") {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        {
+          role: "tutor",
+          text: `Let's make it smaller. ${activeQuestion.scaffoldQuestion}`,
+        },
+      ]);
+      setQuestionStatus("confused");
+    } else {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "tutor", text: activeQuestion.partialFeedback },
+      ]);
+      setQuestionStatus("partial");
+    }
+  }
+
+  function handleFallbackMCSubmit() {
+    if (!activeQuestion || activeQuestion.questionType !== "short_answer") return;
+    const mc = activeQuestion.fallbackMultipleChoice;
+    if (!fallbackMCSelected) return;
+
+    if (fallbackMCSelected === mc.correctAnswer) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: fallbackMCSelected },
+        { role: "tutor", text: `${mc.explanation} ${activeQuestion.correctFeedback}` },
+      ]);
+      setQuestionStatus("correct");
+    } else {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: fallbackMCSelected },
+        {
+          role: "tutor",
+          text: `The answer is: ${mc.correctAnswer}. ${mc.explanation} Let's keep going.`,
+        },
+      ]);
+      setQuestionStatus("revealed");
+    }
+    setShowFallbackMC(false);
+    setFallbackMCSelected("");
   }
 
   function handleNextQuestion() {
     if (!quizData) return;
     if (questionIndex >= quizData.quiz.questions.length - 1) return;
-
-    setQuestionIndex((current) => current + 1);
-    setSelectedOption("");
-    setShortAnswer("");
-    setStatus("idle");
-    setShortAnswerThread([]);
-    setAwaitingFollowUp(false);
+    setQuestionIndex((i) => i + 1);
   }
+
+  const canAdvance =
+    questionStatus === "correct" || questionStatus === "revealed";
+
+  const isLastQuestion =
+    quizData != null && questionIndex >= quizData.quiz.questions.length - 1;
+
+  // Determine hint text: use scaffold hint when confused at attempt 1
+  const hintText =
+    activeQuestion &&
+    questionStatus === "confused" &&
+    !showFallbackMC &&
+    activeQuestion.questionType === "short_answer"
+      ? activeQuestion.scaffoldHint
+      : activeQuestion?.hint ?? "";
 
   return (
     <main className="min-h-screen px-4 py-6 text-white sm:px-8 lg:px-12">
@@ -434,8 +445,7 @@ export default function QuizPage() {
                     </div>
                   </div>
 
-                  <p className="text-sm leading-7 text-[var(--text-soft)]">{quizData.quiz.intro}</p>
-
+                  {/* Transfer teach block — shown before Q5 (index 4) */}
                   {questionIndex === 4 ? (
                     <div className="rounded-[1.2rem] border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/10 px-4 py-3 text-sm leading-6 text-[#d4ebfa]">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
@@ -456,12 +466,45 @@ export default function QuizPage() {
                     </div>
                   ) : null}
 
-                  <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-5">
+                  {/* Question prompt — dimmed when scaffold is active */}
+                  <div
+                    className={`rounded-[1.35rem] border border-white/10 bg-white/5 p-5 transition ${
+                      questionStatus === "confused" && activeQuestion.questionType === "short_answer"
+                        ? "opacity-50"
+                        : ""
+                    }`}
+                  >
                     <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-green)]">
                       Focus: {activeQuestion.focus}
                     </p>
                     <p className="mt-3 text-xl leading-8 text-white">{activeQuestion.prompt}</p>
                   </div>
+
+                  {/* Scaffold prompt — shown when confused (attempt 1, no fallback MC yet) */}
+                  {questionStatus === "confused" &&
+                    activeQuestion.questionType === "short_answer" &&
+                    !showFallbackMC ? (
+                    <div className="rounded-[1.2rem] border border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/8 px-4 py-3 text-sm leading-6 text-[#ffd9b8]">
+                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
+                        Simpler step
+                      </p>
+                      <p className="mt-2">{activeQuestion.scaffoldQuestion}</p>
+                    </div>
+                  ) : null}
+
+                  {/* Revealed answer panel */}
+                  {questionStatus === "revealed" ? (
+                    <div className="rounded-[1.2rem] border border-white/20 bg-white/8 px-4 py-4 text-sm leading-6 text-white">
+                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--text-muted)]">
+                        Answer
+                      </p>
+                      <p className="mt-2">
+                        {activeQuestion.questionType === "short_answer"
+                          ? activeQuestion.acceptableAnswers[0] ?? "See the hint above."
+                          : activeQuestion.correctAnswer}
+                      </p>
+                    </div>
+                  ) : null}
 
                   {activeQuestion.questionType === "multiple_choice" ? (
                     <div className="grid gap-3">
@@ -469,11 +512,16 @@ export default function QuizPage() {
                         <button
                           key={option}
                           type="button"
+                          disabled={questionStatus !== "idle" && questionStatus !== "confused"}
                           onClick={() => setSelectedOption(option)}
                           className={`rounded-[1.1rem] border px-4 py-4 text-left text-sm font-medium transition ${
-                            selectedOption === option
+                            questionStatus === "correct" && option === activeQuestion.correctAnswer
                               ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
-                              : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
+                              : questionStatus !== "idle" && questionStatus !== "confused" && option === activeQuestion.correctAnswer
+                                ? "border-[var(--accent-green)]/50 bg-[var(--accent-green)]/6 text-white"
+                                : selectedOption === option
+                                  ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
+                                  : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
                           }`}
                         >
                           {option}
@@ -482,6 +530,7 @@ export default function QuizPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {/* Conversation thread */}
                       <div className="space-y-2 rounded-[1.1rem] border border-white/10 bg-white/5 p-3">
                         {shortAnswerThread.map((turn, index) => (
                           <div
@@ -497,47 +546,91 @@ export default function QuizPage() {
                         ))}
                       </div>
 
-                      <textarea
-                        value={shortAnswer}
-                        onChange={(event) => setShortAnswer(event.target.value)}
-                        placeholder={
-                          awaitingFollowUp
-                            ? "Reply to the tutor follow-up in one short sentence."
-                            : activeQuestion.placeholder
-                        }
-                        className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
-                      />
-                      <p className="text-xs text-[var(--text-muted)]">
-                        Keep it to about {activeQuestion.maxWords < 8 ? 15 : activeQuestion.maxWords} words or fewer.
-                      </p>
+                      {/* Fallback MC — replaces textarea when confused at attempt 2 */}
+                      {showFallbackMC ? (
+                        <div className="space-y-3 rounded-[1.1rem] border border-white/10 bg-white/5 p-4">
+                          <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
+                            Pick one
+                          </p>
+                          <p className="text-sm leading-6 text-white">
+                            {activeQuestion.fallbackMultipleChoice.prompt}
+                          </p>
+                          <div className="grid gap-2">
+                            {activeQuestion.fallbackMultipleChoice.options.map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setFallbackMCSelected(opt)}
+                                className={`rounded-[1rem] border px-4 py-3 text-left text-sm font-medium transition ${
+                                  fallbackMCSelected === opt
+                                    ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
+                                    : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleFallbackMCSubmit}
+                            disabled={!fallbackMCSelected}
+                            className="rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      ) : questionStatus !== "correct" && questionStatus !== "revealed" ? (
+                        <>
+                          <textarea
+                            value={shortAnswer}
+                            onChange={(e) => setShortAnswer(e.target.value)}
+                            placeholder={activeQuestion.placeholder}
+                            className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
+                          />
+                          <p className="text-xs text-[var(--text-muted)]">
+                            Keep it to about {activeQuestion.maxWords < 8 ? 15 : activeQuestion.maxWords} words or fewer.
+                          </p>
+                        </>
+                      ) : null}
                     </div>
                   )}
 
                   <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={handleSubmitAnswer}
-                      className="rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105"
-                    >
-                      Submit answer
-                    </button>
+                    {!showFallbackMC ? (
+                      <button
+                        type="button"
+                        onClick={handleSubmitAnswer}
+                        disabled={
+                          canAdvance ||
+                          (activeQuestion.questionType === "multiple_choice" && !selectedOption)
+                        }
+                        className="rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Submit answer
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={handleNextQuestion}
-                      disabled={status !== "correct" || questionIndex >= quizData.quiz.questions.length - 1}
+                      disabled={!canAdvance || isLastQuestion}
                       className="rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Next question
                     </button>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div
+                    className={`grid gap-4 md:grid-cols-2 transition ${
+                      questionStatus === "revealed" ? "opacity-50" : ""
+                    }`}
+                  >
                     <div className="rounded-[1rem] bg-black/15 p-4">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
                         Hint
                       </p>
                       <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
-                        {activeQuestion.hint}
+                        {hintText}
                       </p>
                     </div>
                     <div className="rounded-[1rem] bg-black/15 p-4">
@@ -550,21 +643,22 @@ export default function QuizPage() {
                     </div>
                   </div>
 
-                  {feedback && activeQuestion.questionType === "multiple_choice" ? (
+                  {/* MC feedback panel */}
+                  {activeQuestion.questionType === "multiple_choice" && questionStatus !== "idle" ? (
                     <div
                       className={`rounded-[1.2rem] border px-4 py-4 text-sm leading-7 ${
-                        status === "correct"
+                        questionStatus === "correct"
                           ? "border-[var(--accent-green)]/30 bg-[var(--accent-green)]/10 text-[#d7f8d8]"
-                          : status === "partial"
-                            ? "border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/10 text-[#d4ebfa]"
-                            : "border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/10 text-[#ffd9b8]"
+                          : "border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/10 text-[#ffd9b8]"
                       }`}
                     >
-                      {feedback}
+                      {questionStatus === "correct"
+                        ? activeQuestion.correctFeedback
+                        : activeQuestion.incorrectFeedback}
                     </div>
                   ) : null}
 
-                  {questionIndex === quizData.quiz.questions.length - 1 && status !== "idle" ? (
+                  {isLastQuestion && canAdvance ? (
                     <div className="rounded-[1.2rem] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-7 text-[var(--text-soft)]">
                       You reached the final question. You can return to the lesson or stay here and
                       revise your answer before moving on.

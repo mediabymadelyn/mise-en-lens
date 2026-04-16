@@ -289,6 +289,14 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
       correctFeedback: "Good. You named a theme and connected it to the film's actual concern.",
       partialFeedback: "You named something real — now add why the film keeps coming back to it.",
       incorrectFeedback: "Not quite. Pick one theme word (identity, power, family) and say why the film cares about it.",
+      scaffoldQuestion: `Just name one theme in ${filmB} — one word is fine.`,
+      scaffoldHint: "Think of the big idea that keeps coming up: identity, power, family, memory, or belonging.",
+      fallbackMultipleChoice: {
+        prompt: `Which of these is a theme in ${filmB}?`,
+        options: ["Identity and belonging", "Space travel and technology", "Medieval warfare"],
+        correctAnswer: "Identity and belonging",
+        explanation: "Identity and belonging are the themes most character-driven films keep returning to.",
+      },
     },
     // Q4 — Guided interpretation, short answer: technique + feeling in filmC
     {
@@ -311,6 +319,14 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
       correctFeedback: "Exactly. Technique plus feeling — that's a film reading.",
       partialFeedback: "Close. Name the specific technique more clearly, then say what feeling it creates.",
       incorrectFeedback: "Not quite. Name one thing you see or hear on screen, then describe what feeling it creates.",
+      scaffoldQuestion: `Just name one technique you notice in ${filmC} — one word is fine (framing, sound, color, silence).`,
+      scaffoldHint: "Pick one thing you can see or hear on screen and name it.",
+      fallbackMultipleChoice: {
+        prompt: `Which of these is a film technique used to create feeling?`,
+        options: ["Close-up framing on a character's face", "The film's release date", "The director's nationality"],
+        correctAnswer: "Close-up framing on a character's face",
+        explanation: "Close-up framing isolates a character and focuses viewer attention on their emotion.",
+      },
     },
     // Q5 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
@@ -340,7 +356,7 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
       hint: "Use the same lens you applied in Q5, but look at a different film.",
       explanation: "Transfer means taking a concept you learned and finding it somewhere new.",
       maxWords: 18,
-      placeholder: "In ${filmB}, a close-up during the confrontation scene creates the same feeling of dread.",
+      placeholder: `In ${filmB}, a close-up during a key scene creates the same feeling.`,
       acceptableAnswers: [
         "close-up", "framing", "silence", "sound", "color",
         "lighting", "editing", "pacing", "moment", "technique",
@@ -350,8 +366,20 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
         "feels", "makes", "scene", "moment", "technique",
       ],
       correctFeedback: "Correct. You applied the concept to a new film — that's the transfer skill.",
-      partialFeedback: "Close. Name the specific moment or technique in ${filmB} more clearly.",
-      incorrectFeedback: "Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.",
+      partialFeedback: `Close. Name the specific moment or technique in ${filmB} more clearly.`,
+      incorrectFeedback: `Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.`,
+      scaffoldQuestion: `Just name one technique you notice in ${filmB} — one word is fine.`,
+      scaffoldHint: "Look for the same kind of craft choice you learned about in the teach block above.",
+      fallbackMultipleChoice: {
+        prompt: `Which of these shows a craft technique being used deliberately in ${filmB}?`,
+        options: [
+          "A close-up that focuses attention on a character's emotion",
+          "The film's running time",
+          "The country where the film was made",
+        ],
+        correctAnswer: "A close-up that focuses attention on a character's emotion",
+        explanation: "Close-ups are one of the most direct ways a director can guide what you pay attention to.",
+      },
     },
   ];
 }
@@ -574,6 +602,18 @@ export function buildFallbackQuiz(
         correctFeedback: `Correct. You applied ${transferSeq.concept.toLowerCase()} to a new film.`,
         partialFeedback: `Close. Name the specific technique in ${filmB} more clearly and say what it creates.`,
         incorrectFeedback: `Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.`,
+        scaffoldQuestion: `Just name one technique you notice in ${filmB} — one word is fine.`,
+        scaffoldHint: "Look for the same kind of craft choice described in the teach block above.",
+        fallbackMultipleChoice: {
+          prompt: `Which of these shows ${transferSeq.concept.toLowerCase()} being used in ${filmB}?`,
+          options: [
+            `A specific craft choice that focuses your attention on a character or moment`,
+            `The film's runtime and release year`,
+            `The nationality of the director`,
+          ],
+          correctAnswer: `A specific craft choice that focuses your attention on a character or moment`,
+          explanation: `${transferSeq.concept} is always about a deliberate craft choice that shapes what you notice and feel.`,
+        },
       } satisfies QuizQuestion;
     }
 

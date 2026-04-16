@@ -25,6 +25,14 @@ export type ShortAnswerQuestion = QuizQuestionBase & {
   placeholder: string;
   acceptableAnswers: string[];
   acceptableKeywords: string[];
+  scaffoldQuestion: string;
+  scaffoldHint: string;
+  fallbackMultipleChoice: {
+    prompt: string;
+    options: string[];
+    correctAnswer: string;
+    explanation: string;
+  };
 };
 
 export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;
