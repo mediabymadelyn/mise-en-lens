@@ -1,5 +1,6 @@
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
 import type { QuizQuestion, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const TITLE_KEYWORDS = {
   animation: ["spirited", "totoro", "animated", "spider-verse", "shrek", "coraline", "fantastic mr"],
@@ -126,13 +127,27 @@ function detectArchetype(titles: string[]): TasteArchetype {
   return ARCHETYPES[winner.key];
 }
 
-function buildFilmNote(film: LetterboxdFilm, index: number, archetype: TasteArchetype) {
+function buildFilmNote(
+  film: LetterboxdFilm,
+  index: number,
+  archetype: TasteArchetype,
+  wikiCtx?: WikiFilmContext | null
+) {
+  const defaultSummary =
+    index === 0
+      ? `This pick likely acts as a cornerstone for your taste, which makes it a useful starting point for discussing how film style shapes interpretation.`
+      : `This selection reinforces the pattern in your Top 4 by adding another example of how mood, genre, and point of view can teach us to read movies more closely.`;
+
+  let summary = defaultSummary;
+  if (wikiCtx?.plot) {
+    summary = `${wikiCtx.plot.split(". ").slice(0, 3).join(". ")}. This makes it a useful reference point for studying how film style shapes interpretation.`;
+  } else if (wikiCtx?.extract) {
+    summary = `${wikiCtx.extract.split(". ").slice(0, 2).join(". ")}. This makes it a useful reference point for studying how film style shapes interpretation.`;
+  }
+
   return {
     title: film.title,
-    summary:
-      index === 0
-        ? `This pick likely acts as a cornerstone for your taste, which makes it a useful starting point for discussing how film style shapes interpretation.`
-        : `This selection reinforces the pattern in your Top 4 by adding another example of how mood, genre, and point of view can teach us to read movies more closely.`,
+    summary,
     artisticElements:
       archetype.key === "animation"
         ? "Pay attention to palette, movement, and how the frame guides your eye before any dialogue explains what matters."
@@ -370,7 +385,81 @@ function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype):
   ];
 }
 
-export function buildFallbackLesson(films: LetterboxdFilm[]): TutorLessonPayload {
+const FILM_KEYWORDS = new Set([
+  "cinematography", "noir", "expressionism", "surrealism", "realism",
+  "neorealism", "montage", "suspense", "thriller", "dystopia", "satire",
+  "allegory", "symbolism", "minimalism", "postmodern", "avant-garde",
+  "documentary", "narrative", "protagonist", "antagonist", "soundtrack",
+]);
+
+const STOP_WORDS = new Set([
+  "the", "and", "for", "its", "his", "her", "was", "are", "has", "had",
+  "but", "not", "this", "that", "with", "from", "into", "also", "been",
+  "they", "their", "which", "when", "where", "who", "how", "all", "each",
+  "she", "him", "them", "than", "then", "only", "very", "can", "will",
+]);
+
+function extractWikiKeywords(extract: string): string[] {
+  const words = extract.split(/[\s,;:.!?()\[\]"]+/).filter(Boolean);
+  const keywords = new Set<string>();
+
+  for (const word of words) {
+    const lower = word.toLowerCase();
+    if (lower.length < 3 || STOP_WORDS.has(lower)) continue;
+
+    if (FILM_KEYWORDS.has(lower)) {
+      keywords.add(lower);
+      continue;
+    }
+    if (word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase()) {
+      keywords.add(lower);
+    }
+  }
+
+  return [...keywords];
+}
+
+function enrichQuizKeywords(
+  questions: QuizQuestion[],
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
+): QuizQuestion[] {
+  const allWikiKeywords: string[] = [];
+  for (const film of films) {
+    const ctx = wikiContext.get(film.title);
+    if (!ctx) continue;
+    allWikiKeywords.push(...extractWikiKeywords(ctx.extract));
+    if (ctx.plot) allWikiKeywords.push(...extractWikiKeywords(ctx.plot));
+    if (ctx.themes) allWikiKeywords.push(...extractWikiKeywords(ctx.themes));
+  }
+
+  if (allWikiKeywords.length === 0) return questions;
+
+  return questions.map((q) => {
+    if (q.questionType !== "short_answer") return q;
+
+    const existingAnswers = new Set(q.acceptableAnswers.map((a) => a.toLowerCase()));
+    const existingKeywords = new Set(q.acceptableKeywords.map((k) => k.toLowerCase()));
+
+    const newAnswers = allWikiKeywords
+      .filter((kw) => !existingAnswers.has(kw))
+      .slice(0, 6 - q.acceptableAnswers.length);
+    const newKeywords = allWikiKeywords
+      .filter((kw) => !existingKeywords.has(kw))
+      .slice(0, 10 - q.acceptableKeywords.length);
+
+    return {
+      ...q,
+      acceptableAnswers: [...q.acceptableAnswers, ...newAnswers],
+      acceptableKeywords: [...q.acceptableKeywords, ...newKeywords],
+    };
+  });
+}
+
+export function buildFallbackLesson(
+  films: LetterboxdFilm[],
+  wikiContext?: Map<string, WikiFilmContext | null>
+): TutorLessonPayload {
   const titles = films.map((film) => film.title);
   const archetype = detectArchetype(titles);
   const tasteProfile = [
@@ -389,7 +478,9 @@ export function buildFallbackLesson(films: LetterboxdFilm[]): TutorLessonPayload
       explanation: archetype.conceptExplanation,
       connection: archetype.conceptConnection,
     },
-    filmNotes: films.map((film, index) => buildFilmNote(film, index, archetype)),
+    filmNotes: films.map((film, index) =>
+      buildFilmNote(film, index, archetype, wikiContext?.get(film.title))
+    ),
     recommendation: {
       title: archetype.recommendation.title,
       whyYouMightLikeIt: archetype.recommendation.why,
@@ -398,10 +489,18 @@ export function buildFallbackLesson(films: LetterboxdFilm[]): TutorLessonPayload
   };
 }
 
-export function buildFallbackQuiz(films: LetterboxdFilm[]): TutorQuizPayload {
+export function buildFallbackQuiz(
+  films: LetterboxdFilm[],
+  wikiContext?: Map<string, WikiFilmContext | null>
+): TutorQuizPayload {
   const archetype = detectArchetype(films.map((film) => film.title));
   const fromFilm = films[0]?.title ?? "your first favorite";
   const applyToFilm = films[2]?.title ?? "another film in your Top 4";
+
+  const baseQuestions = buildQuizQuestions(films, archetype);
+  const questions = wikiContext
+    ? enrichQuizKeywords(baseQuestions, films, wikiContext)
+    : baseQuestions;
 
   return {
     title: "Practice with your Top 4",
@@ -413,6 +512,6 @@ export function buildFallbackQuiz(films: LetterboxdFilm[]): TutorQuizPayload {
       applyToFilm,
       explanation: `${archetype.conceptName} means noticing how a craft choice shapes meaning in ${fromFilm}. Use that same lens when reading ${applyToFilm}.`,
     },
-    questions: buildQuizQuestions(films, archetype),
+    questions,
   };
 }

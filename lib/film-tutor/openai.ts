@@ -1,5 +1,6 @@
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
 import type { TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_FILM_TUTOR_MODEL || "gpt-4o-mini";
@@ -180,7 +181,30 @@ const quizSchema = {
   },
 } as const;
 
-function buildLessonPrompt(films: LetterboxdFilm[]) {
+function buildWikiReferenceBlock(
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
+): string {
+  const blocks: string[] = [];
+  for (const film of films) {
+    const ctx = wikiContext.get(film.title);
+    if (!ctx) continue;
+    const parts = [`Reference context for "${film.title}":\n${ctx.extract}`];
+    if (ctx.plot) parts.push(`Plot synopsis:\n${ctx.plot}`);
+    if (ctx.themes) parts.push(`Themes:\n${ctx.themes}`);
+    blocks.push(parts.join("\n\n"));
+  }
+  if (blocks.length === 0) return "";
+  return (
+    "\n\nUse the reference context below for factual grounding. Do not invent plot details, director names, release years, or cast information that is not supported by the reference context or your confident knowledge.\n\n" +
+    blocks.join("\n\n---\n\n")
+  );
+}
+
+function buildLessonPrompt(
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
+) {
   const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
 
   return [
@@ -193,10 +217,14 @@ function buildLessonPrompt(films: LetterboxdFilm[]) {
     "Recommendation should feel like educational redirection, not just similarity.",
     "Top 4:",
     lines,
+    buildWikiReferenceBlock(films, wikiContext),
   ].join("\n");
 }
 
-function buildQuizPrompt(films: LetterboxdFilm[]) {
+function buildQuizPrompt(
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
+) {
   const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
 
   return [
@@ -217,8 +245,10 @@ function buildQuizPrompt(films: LetterboxdFilm[]) {
     "Avoid long explanations, deep theory, and plot-fragile trivia.",
     "For each question include concise hint, explanation, and feedback strings.",
     "Feedback behavior: vague/idk -> simpler follow-up question; partial -> acknowledge + one refinement question; correct -> brief confirmation + one-sentence expansion.",
+    "For short_answer questions, populate acceptableAnswers and acceptableKeywords using factual details from the reference context (character names, director names, specific themes, years, techniques mentioned).",
     "Top 4:",
     lines,
+    buildWikiReferenceBlock(films, wikiContext),
   ].join("\n");
 }
 
@@ -280,11 +310,15 @@ async function generateWithOpenAI<T>(
 }
 
 export async function generateLessonWithOpenAI(
-  films: LetterboxdFilm[]
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorLessonPayload> {
-  return generateWithOpenAI<TutorLessonPayload>(buildLessonPrompt(films), lessonSchema);
+  return generateWithOpenAI<TutorLessonPayload>(buildLessonPrompt(films, wikiContext), lessonSchema);
 }
 
-export async function generateQuizWithOpenAI(films: LetterboxdFilm[]): Promise<TutorQuizPayload> {
-  return generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films), quizSchema);
+export async function generateQuizWithOpenAI(
+  films: LetterboxdFilm[],
+  wikiContext: Map<string, WikiFilmContext | null>
+): Promise<TutorQuizPayload> {
+  return generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
 }

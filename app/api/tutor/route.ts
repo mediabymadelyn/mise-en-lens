@@ -2,6 +2,7 @@ import { buildFallbackLesson, buildFallbackQuiz } from "@/lib/film-tutor/fallbac
 import { generateLessonWithOpenAI, generateQuizWithOpenAI } from "@/lib/film-tutor/openai";
 import type { TutorMode, TutorResponse } from "@/lib/film-tutor/types";
 import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
+import { fetchWikiContextForFilms } from "@/lib/wikipedia/client";
 
 export const runtime = "nodejs";
 
@@ -29,9 +30,17 @@ export async function POST(request: Request) {
       );
     }
 
+    let wikiContext: Map<string, import("@/lib/wikipedia/client").WikiFilmContext | null>;
+    try {
+      wikiContext = await fetchWikiContextForFilms(films.map((f) => f.title));
+    } catch {
+      console.warn("Wikipedia context fetch failed entirely; proceeding without it.");
+      wikiContext = new Map();
+    }
+
     try {
       if (mode === "quiz") {
-        const quiz = await generateQuizWithOpenAI(films);
+        const quiz = await generateQuizWithOpenAI(films, wikiContext);
 
         return Response.json(
           {
@@ -48,7 +57,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const lesson = await generateLessonWithOpenAI(films);
+      const lesson = await generateLessonWithOpenAI(films, wikiContext);
 
       return Response.json(
         {
@@ -74,7 +83,7 @@ export async function POST(request: Request) {
           : "Using the built-in lesson generator. OpenAI request failed, so fallback content was used.");
 
       if (mode === "quiz") {
-        const fallbackQuiz = buildFallbackQuiz(films);
+        const fallbackQuiz = buildFallbackQuiz(films, wikiContext);
 
         return Response.json(
           {
@@ -91,7 +100,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const fallbackLesson = buildFallbackLesson(films);
+      const fallbackLesson = buildFallbackLesson(films, wikiContext);
 
       return Response.json(
         {
