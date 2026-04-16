@@ -1,7 +1,6 @@
 import { buildFallbackLesson, buildFallbackQuiz } from "@/lib/film-tutor/fallback";
 import { generateLessonWithOpenAI, generateQuizWithOpenAI } from "@/lib/film-tutor/openai";
-import type { TutorMode, TutorResponse } from "@/lib/film-tutor/types";
-import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
+import type { FilmInput, TutorMode, TutorResponse } from "@/lib/film-tutor/types";
 import { fetchWikiContextForFilms } from "@/lib/wikipedia/client";
 
 export const runtime = "nodejs";
@@ -11,7 +10,7 @@ type TutorRequestBody = {
   username?: string;
   source_url?: string;
   warning?: string;
-  films?: LetterboxdFilm[];
+  films?: FilmInput[];
 };
 
 export async function POST(request: Request) {

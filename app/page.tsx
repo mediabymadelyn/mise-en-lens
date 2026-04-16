@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
-import type { TutorLessonResponse, TutorResponse } from "@/lib/film-tutor/types";
+import type { FilmInput, TutorLessonResponse, TutorResponse } from "@/lib/film-tutor/types";
 
 type Top4Response =
   | {
@@ -25,18 +25,29 @@ type Top4Response =
       username?: string;
     };
 
+type WikiLookupResult =
+  | { title: string; found: true; wikiTitle: string; description: string | null; thumbnailUrl: string | null; pageUrl: string }
+  | { title: string; found: false };
+
+type ConfirmedFilm = WikiLookupResult & { confirmed: boolean };
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [top4, setTop4] = useState<Top4Response | null>(null);
   const [lesson, setLesson] = useState<TutorLessonResponse | null>(null);
 
+  // Manual entry state
+  const [showManual, setShowManual] = useState(false);
+  const [manualTitles, setManualTitles] = useState(["", "", "", ""]);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [confirmedFilms, setConfirmedFilms] = useState<ConfirmedFilm[] | null>(null);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const prefill = params.get("prefill");
-    if (prefill) {
-      setInput(prefill);
-    }
+    if (prefill) setInput(prefill);
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -56,24 +67,17 @@ export default function Home() {
     try {
       const scrapeResponse = await fetch("/api/letterboxd/top4", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: trimmed }),
       });
 
       const scrapePayload = (await scrapeResponse.json()) as Top4Response;
       setTop4(scrapePayload);
-
-      if (!scrapePayload.ok) {
-        return;
-      }
+      if (!scrapePayload.ok) return;
 
       const tutorResponse = await fetch("/api/tutor", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "blurb",
           username: scrapePayload.username,
@@ -84,12 +88,10 @@ export default function Home() {
       });
 
       const tutorPayload = (await tutorResponse.json()) as TutorResponse;
-
       if (tutorPayload.ok && tutorPayload.mode === "blurb") {
         setLesson(tutorPayload);
         return;
       }
-
       setLesson(null);
     } catch {
       setTop4({
@@ -101,6 +103,57 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function handleManualLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const titles = manualTitles.map((t) => t.trim()).filter(Boolean);
+    if (titles.length < 3) {
+      setLookupError("Enter at least 3 film titles.");
+      return;
+    }
+
+    setIsLookingUp(true);
+    setLookupError(null);
+    setConfirmedFilms(null);
+
+    try {
+      const res = await fetch("/api/manual/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titles }),
+      });
+      const data = (await res.json()) as { ok: boolean; results?: WikiLookupResult[]; error?: string };
+      if (!data.ok || !data.results) {
+        setLookupError(data.error ?? "Lookup failed.");
+        return;
+      }
+      setConfirmedFilms(data.results.map((r) => ({ ...r, confirmed: false })));
+    } catch {
+      setLookupError("The lookup failed. Try again.");
+    } finally {
+      setIsLookingUp(false);
+    }
+  }
+
+  function handleManualConfirm() {
+    if (!confirmedFilms) return;
+    const films: FilmInput[] = confirmedFilms
+      .filter((f) => f.found && f.confirmed)
+      .map((f) => ({
+        title: f.found ? f.wikiTitle : f.title,
+        poster_url: f.found ? f.thumbnailUrl : null,
+        film_url: null,
+        source: "manual" as const,
+      }));
+
+    if (films.length < 3) {
+      setLookupError("Confirm at least 3 films before continuing.");
+      return;
+    }
+
+    sessionStorage.setItem("manualFilms", JSON.stringify(films));
+    window.location.href = `/quiz?source=manual`;
   }
 
   return (
@@ -149,7 +202,140 @@ export default function Home() {
                     {isLoading ? "Building lesson..." : "Pull Top 4"}
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => { setShowManual((v) => !v); setConfirmedFilms(null); setLookupError(null); }}
+                  className="text-xs text-[var(--text-muted)] underline-offset-2 hover:text-[var(--text-soft)] hover:underline"
+                >
+                  {showManual ? "Hide manual entry" : "No Letterboxd? Enter films manually"}
+                </button>
               </form>
+
+              {showManual ? (
+                <div className="space-y-4 rounded-[1.5rem] border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--accent-green)]">
+                    Manual film entry
+                  </p>
+                  <form onSubmit={handleManualLookup} className="space-y-3">
+                    {manualTitles.map((title, i) => (
+                      <div key={i}>
+                        <label className="sr-only" htmlFor={`manual-film-${i}`}>
+                          Favorite {i + 1}
+                        </label>
+                        <input
+                          id={`manual-film-${i}`}
+                          value={title}
+                          onChange={(e) => {
+                            const next = [...manualTitles];
+                            next[i] = e.target.value;
+                            setManualTitles(next);
+                          }}
+                          placeholder={i < 3 ? `Favorite ${i + 1} (required)` : `Favorite ${i + 1} (optional)`}
+                          required={i < 3}
+                          className="h-12 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 text-sm text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
+                        />
+                      </div>
+                    ))}
+                    {lookupError ? (
+                      <p className="text-xs text-[#ffd9b8]">{lookupError}</p>
+                    ) : null}
+                    <button
+                      type="submit"
+                      disabled={isLookingUp}
+                      className="h-12 rounded-[1.1rem] bg-[var(--accent-green)] px-5 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isLookingUp ? "Looking up films..." : "Look up films"}
+                    </button>
+                  </form>
+
+                  {confirmedFilms ? (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--text-muted)]">
+                        Confirm your films
+                      </p>
+                      {confirmedFilms.map((film, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-start gap-3 rounded-[1.1rem] border p-3 transition ${
+                            film.confirmed
+                              ? "border-[var(--accent-green)]/40 bg-[var(--accent-green)]/8"
+                              : "border-white/10 bg-white/4"
+                          }`}
+                        >
+                          {film.found && film.thumbnailUrl ? (
+                            <Image
+                              src={film.thumbnailUrl}
+                              alt={film.wikiTitle}
+                              width={40}
+                              height={60}
+                              className="h-[60px] w-10 shrink-0 rounded-[0.5rem] object-cover"
+                            />
+                          ) : (
+                            <div className="h-[60px] w-10 shrink-0 rounded-[0.5rem] bg-white/10" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            {film.found ? (
+                              <>
+                                <p className="text-sm font-semibold text-white">{film.wikiTitle}</p>
+                                {film.description ? (
+                                  <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+                                    {film.description}
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="text-sm text-[#ffd9b8]">
+                                Couldn&apos;t find &ldquo;{film.title}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                          {film.found ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmedFilms((cur) =>
+                                  cur
+                                    ? cur.map((f, j) =>
+                                        j === i ? { ...f, confirmed: !f.confirmed } : f
+                                      )
+                                    : cur
+                                );
+                              }}
+                              className={`shrink-0 rounded-[0.8rem] border px-3 py-1.5 text-xs font-semibold transition ${
+                                film.confirmed
+                                  ? "border-[var(--accent-green)] bg-[var(--accent-green)]/15 text-[var(--accent-green)]"
+                                  : "border-white/15 bg-white/6 text-[var(--text-soft)] hover:bg-white/10"
+                              }`}
+                            >
+                              {film.confirmed ? "Confirmed" : "This is right"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = [...manualTitles];
+                                next[i] = film.title;
+                                setManualTitles(next);
+                                setConfirmedFilms(null);
+                              }}
+                              className="shrink-0 rounded-[0.8rem] border border-white/15 bg-white/6 px-3 py-1.5 text-xs font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
+                            >
+                              Try again
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleManualConfirm}
+                        className="h-12 rounded-[1.1rem] bg-[var(--accent-orange)] px-5 text-sm font-semibold text-[#1f232a] transition hover:brightness-105"
+                      >
+                        Continue to quiz
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="grid gap-4 text-sm text-[var(--text-soft)] sm:grid-cols-3">
                 <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">

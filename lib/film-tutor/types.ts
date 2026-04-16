@@ -2,6 +2,13 @@ import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
 
 export type TutorMode = "blurb" | "quiz";
 
+export type FilmInput = {
+  title: string;
+  poster_url: string | null;   // null for manual entry unless wiki summary has thumbnail
+  film_url: string | null;     // null for manual entry
+  source: "letterboxd" | "manual";
+};
+
 type QuizQuestionBase = {
   id: string;
   prompt: string;
@@ -80,7 +87,7 @@ type TutorSuccessBase = {
   generatedBy: "openai" | "fallback";
   username: string;
   source_url: string;
-  films: LetterboxdFilm[];
+  films: LetterboxdFilm[] | FilmInput[];
   warning?: string;
 };
 

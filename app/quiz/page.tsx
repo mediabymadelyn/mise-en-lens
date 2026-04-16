@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
+  FilmInput,
   QuizQuestion,
   ShortAnswerQuestion,
   TutorQuizResponse,
@@ -97,7 +98,6 @@ function evaluateShortAnswer(
 }
 
 export default function QuizPage() {
-  const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quizData, setQuizData] = useState<TutorQuizResponse | null>(null);
@@ -117,33 +117,53 @@ export default function QuizPage() {
   const [fallbackMCSelected, setFallbackMCSelected] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setUsername(params.get("username")?.trim() ?? "");
-  }, []);
-
-  useEffect(() => {
     async function loadQuiz() {
-      if (!username) {
-        setError("Add a username in the URL to start the quiz.");
-        setIsLoading(false);
-        return;
-      }
+      const params = new URLSearchParams(window.location.search);
+      const source = params.get("source");
+      const usernameParam = params.get("username")?.trim() ?? "";
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const scrapeResponse = await fetch("/api/letterboxd/top4", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: username }),
-        });
+        let films: FilmInput[];
+        let quizUsername: string;
+        let quizSourceUrl: string;
 
-        const scrapePayload = (await scrapeResponse.json()) as Top4Response;
-        if (!scrapePayload.ok) {
-          setError(scrapePayload.error);
-          setIsLoading(false);
-          return;
+        if (source === "manual") {
+          // Manual path: read confirmed films from sessionStorage
+          const stored = sessionStorage.getItem("manualFilms");
+          if (!stored) {
+            setError("No films found. Please go back and enter your films.");
+            setIsLoading(false);
+            return;
+          }
+          films = JSON.parse(stored) as FilmInput[];
+          quizUsername = "Manual entry";
+          quizSourceUrl = "manual";
+        } else {
+          // Letterboxd path: scrape as before
+          if (!usernameParam) {
+            setError("Add a username in the URL to start the quiz.");
+            setIsLoading(false);
+            return;
+          }
+          const scrapeResponse = await fetch("/api/letterboxd/top4", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input: usernameParam }),
+          });
+
+          const scrapePayload = (await scrapeResponse.json()) as Top4Response;
+          if (!scrapePayload.ok) {
+            setError(scrapePayload.error);
+            setIsLoading(false);
+            return;
+          }
+
+          films = scrapePayload.films.map((f) => ({ ...f, source: "letterboxd" as const }));
+          quizUsername = scrapePayload.username;
+          quizSourceUrl = scrapePayload.source_url;
         }
 
         const tutorResponse = await fetch("/api/tutor", {
@@ -151,10 +171,9 @@ export default function QuizPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "quiz",
-            username: scrapePayload.username,
-            source_url: scrapePayload.source_url,
-            films: scrapePayload.films,
-            warning: scrapePayload.warning,
+            username: quizUsername,
+            source_url: quizSourceUrl,
+            films,
           }),
         });
 
@@ -175,7 +194,7 @@ export default function QuizPage() {
     }
 
     void loadQuiz();
-  }, [username]);
+  }, []);
 
   const activeQuestion = useMemo((): QuizQuestion | null => {
     if (!quizData) return null;

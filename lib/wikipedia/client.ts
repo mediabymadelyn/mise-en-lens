@@ -6,6 +6,7 @@ export type WikiFilmContext = {
   pageUrl: string;
   plot: string | null;
   themes: string | null;
+  thumbnailUrl: string | null;
 };
 
 const TIMEOUT_MS = 8000;
@@ -23,6 +24,9 @@ type WikiSummaryResponse = {
   description?: string;
   content_urls?: {
     desktop?: { page?: string };
+  };
+  thumbnail?: {
+    source?: string;
   };
 };
 
@@ -177,6 +181,7 @@ async function fetchSingleFilm(
           `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle.replace(/ /g, "_"))}`,
         plot: plotRaw ? truncateToWords(plotRaw, MAX_SECTION_WORDS) : null,
         themes: themesRaw ? truncateToWords(themesRaw, MAX_SECTION_WORDS) : null,
+        thumbnailUrl: summary.thumbnail?.source ?? null,
       };
     } catch {
       continue;

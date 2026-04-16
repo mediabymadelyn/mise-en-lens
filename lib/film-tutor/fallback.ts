@@ -1,5 +1,4 @@
-import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
-import type { QuizQuestion, TransferSequence, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { FilmInput, QuizQuestion, TransferSequence, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const TITLE_KEYWORDS = {
@@ -128,7 +127,7 @@ function detectArchetype(titles: string[]): TasteArchetype {
 }
 
 function buildFilmNote(
-  film: LetterboxdFilm,
+  film: FilmInput,
   index: number,
   archetype: TasteArchetype,
   wikiCtx?: WikiFilmContext | null
@@ -165,7 +164,7 @@ function buildFilmNote(
   };
 }
 
-function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype): QuizQuestion[] {
+function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): QuizQuestion[] {
   const filmA = films[0]?.title ?? "one of your favorites";
   const filmB = films[1]?.title ?? "another film in your Top 4";
   const filmC = films[2]?.title ?? "a third favorite";
@@ -420,7 +419,7 @@ function extractWikiKeywords(extract: string): string[] {
 
 function enrichQuizKeywords(
   questions: QuizQuestion[],
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ): QuizQuestion[] {
   const allWikiKeywords: string[] = [];
@@ -456,7 +455,7 @@ function enrichQuizKeywords(
 }
 
 export function buildFallbackLesson(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext?: Map<string, WikiFilmContext | null>
 ): TutorLessonPayload {
   const titles = films.map((film) => film.title);
@@ -489,7 +488,7 @@ export function buildFallbackLesson(
 }
 
 function buildTransferSequence(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   archetype: TasteArchetype,
   wikiContext?: Map<string, WikiFilmContext | null>
 ): TransferSequence {
@@ -543,7 +542,7 @@ function buildTransferSequence(
 }
 
 export function buildFallbackQuiz(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext?: Map<string, WikiFilmContext | null>
 ): TutorQuizPayload {
   const archetype = detectArchetype(films.map((film) => film.title));

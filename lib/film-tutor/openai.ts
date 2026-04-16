@@ -1,5 +1,4 @@
-import type { LetterboxdFilm } from "@/lib/letterboxd/scraper";
-import type { TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { FilmInput, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -205,7 +204,7 @@ const quizSchema = {
 } as const;
 
 function buildWikiReferenceBlock(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ): string {
   const blocks: string[] = [];
@@ -225,7 +224,7 @@ function buildWikiReferenceBlock(
 }
 
 function buildLessonPrompt(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ) {
   const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
@@ -245,7 +244,7 @@ function buildLessonPrompt(
 }
 
 function buildQuizPrompt(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ) {
   const lines = films.map((film, index) => `${index + 1}. ${film.title}`).join("\n");
@@ -338,14 +337,14 @@ async function generateWithOpenAI<T>(
 }
 
 export async function generateLessonWithOpenAI(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorLessonPayload> {
   return generateWithOpenAI<TutorLessonPayload>(buildLessonPrompt(films, wikiContext), lessonSchema);
 }
 
 export async function generateQuizWithOpenAI(
-  films: LetterboxdFilm[],
+  films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorQuizPayload> {
   return generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
