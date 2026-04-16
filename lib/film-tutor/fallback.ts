@@ -166,221 +166,192 @@ function buildFilmNote(
 }
 
 function buildQuizQuestions(films: LetterboxdFilm[], archetype: TasteArchetype): QuizQuestion[] {
-  const first = films[0]?.title ?? "one of your favorites";
-  const second = films[1]?.title ?? "another film in your Top 4";
-  const third = films[2]?.title ?? "a third favorite";
-  const fourth = films[3]?.title ?? "a fourth favorite";
+  const filmA = films[0]?.title ?? "one of your favorites";
+  const filmB = films[1]?.title ?? "another film in your Top 4";
+  const filmC = films[2]?.title ?? "a third favorite";
 
   return [
+    // Q1 — Recognition, multiple choice: easy fact from filmA
     {
       id: "q1",
       questionType: "multiple_choice",
-      prompt: `To understand how ${first} creates its mood, which element would you notice first?`,
-      focus: archetype.conceptName,
-      hint: "Look for something you can see or hear on screen.",
-      explanation:
-        "Film creates feeling through visible and audible choices. Starting there gives you concrete evidence.",
+      prompt: `What best describes the genre or style of ${filmA}?`,
+      focus: "Recognition",
+      hint: "Think about how the film feels overall — its genre or the type of story it tells.",
+      explanation: "Recognizing genre helps you know what visual and narrative tools to expect.",
       options: [
-        "How the camera frames characters and spaces",
-        "The color of lighting in key scenes",
-        "The sound design and silence",
-        "The costumes and props chosen",
+        archetype.key === "animation"
+          ? "Animated feature with an emotional, visually expressive story"
+          : archetype.key === "horror"
+            ? "A horror film that uses atmosphere and tension over jump scares"
+            : archetype.key === "romance"
+              ? "A romantic drama focused on emotional relationships and intimacy"
+              : archetype.key === "sciFi"
+                ? "A science-fiction film exploring ideas through visual world-building"
+                : archetype.key === "crime"
+                  ? "A crime or thriller film with moral ambiguity and tension"
+                  : "A drama with a strong point of view and intentional visual style",
+        "A fast-paced action blockbuster with big set pieces",
+        "A documentary focused on historical events",
+        "A comedy built around improvised dialogue",
       ],
-      correctAnswer: "How the camera frames characters and spaces",
-      correctFeedback:
-        "Yes, exactly. Framing is one of the most direct ways to guide what the viewer feels.",
-      partialFeedback:
-        "You're on the right track. These are all techniques, but framing—how the camera positions characters—is the fastest entry point.",
-      incorrectFeedback:
-        "Not quite. Pick one of the visible or audible techniques—something you can actually see or hear on screen.",
+      correctAnswer:
+        archetype.key === "animation"
+          ? "Animated feature with an emotional, visually expressive story"
+          : archetype.key === "horror"
+            ? "A horror film that uses atmosphere and tension over jump scares"
+            : archetype.key === "romance"
+              ? "A romantic drama focused on emotional relationships and intimacy"
+              : archetype.key === "sciFi"
+                ? "A science-fiction film exploring ideas through visual world-building"
+                : archetype.key === "crime"
+                  ? "A crime or thriller film with moral ambiguity and tension"
+                  : "A drama with a strong point of view and intentional visual style",
+      correctFeedback: "Correct. That's the genre foundation — now you can notice which techniques go with it.",
+      partialFeedback: "Close. Look at the genre more broadly — what category of film does it belong to?",
+      incorrectFeedback: "Not quite. Think about the overall type of story and how it makes you feel.",
     },
+    // Q2 — Recognition, multiple choice: mood/tone of filmA
     {
       id: "q2",
       questionType: "multiple_choice",
-      prompt: `What best describes how ${second} makes you feel during tense moments?`,
+      prompt: `Which of these best describes the mood or tone of ${filmA}?`,
       focus: "Recognition",
-      hint: "Look at how the film uses specific techniques, not just what happens in the plot.",
-      explanation: "Understanding tone means noticing how style choices create emotion, not just following plot events.",
-      options: [
-        "Close-ups and silence make you focus on character fear or doubt",
-        "Quick editing and bright lighting create energy and excitement",
-        "Wide shots and ambient sound keep the scene feeling distant or isolated",
-        "Slow pacing with music makes moments feel reflective or sad",
-      ],
-      correctAnswer: "Close-ups and silence make you focus on character fear or doubt",
-      correctFeedback:
-        "Correct. You identified a specific technique (close-ups and silence) and its emotional effect.",
-      partialFeedback:
-        "You're on the right track, but these all describe real techniques. Pick the one that matches ${second}'s tone best.",
-      incorrectFeedback:
-        "Not quite. Think about whether ${second} uses close or wide shots, and whether it's quiet or busy with sound.",
+      hint: "Think about the feeling the film leaves you with — not the plot, the atmosphere.",
+      explanation: "Identifying tone is a first step toward noticing which techniques create it.",
+      options:
+        archetype.key === "horror"
+          ? [
+              "Slow-building dread with unsettling silence and off-screen threat",
+              "Playful and light, with upbeat music and bright visuals",
+              "Epic and triumphant, building toward a hopeful ending",
+              "Nostalgic and warm, focused on childhood memory",
+            ]
+          : archetype.key === "romance"
+            ? [
+                "Intimate and melancholic, with long pauses and restrained performance",
+                "Loud and chaotic, driven by confrontation and action",
+                "Satirical and comedic, mocking its own genre conventions",
+                "Urgent and thriller-like, with fast cuts and rising stakes",
+              ]
+            : archetype.key === "sciFi"
+              ? [
+                  "Cold and contemplative, using visual design to express ideas",
+                  "Warm and nostalgic, centered on family and belonging",
+                  "Comedic and fast-paced, with slapstick and exaggeration",
+                  "Romantic and emotional, driven by personal loss",
+                ]
+              : archetype.key === "crime"
+                ? [
+                    "Tense and morally ambiguous, with slow reveals and ethical weight",
+                    "Optimistic and energetic, with clear heroes and villains",
+                    "Dreamlike and surreal, ignoring narrative logic",
+                    "Comedic and self-aware, playing with genre clichés",
+                  ]
+                : [
+                    "Deliberate and atmospheric, rewarding close attention",
+                    "Fast and surface-level, focused purely on entertainment",
+                    "Chaotic and improvised, with no clear visual intent",
+                    "Nostalgic and crowd-pleasing, avoiding difficult emotions",
+                  ],
+      correctAnswer:
+        archetype.key === "horror"
+          ? "Slow-building dread with unsettling silence and off-screen threat"
+          : archetype.key === "romance"
+            ? "Intimate and melancholic, with long pauses and restrained performance"
+            : archetype.key === "sciFi"
+              ? "Cold and contemplative, using visual design to express ideas"
+              : archetype.key === "crime"
+                ? "Tense and morally ambiguous, with slow reveals and ethical weight"
+                : "Deliberate and atmospheric, rewarding close attention",
+      correctFeedback: "Yes. You identified the tone — that's the starting point for reading technique.",
+      partialFeedback: "You're in the right area. Think specifically about the atmosphere, not the story.",
+      incorrectFeedback: `Not quite. Think about how ${filmA} makes you feel, not what happens in it.`,
     },
+    // Q3 — Guided interpretation, short answer: theme in filmB
     {
       id: "q3",
       questionType: "short_answer",
-      prompt: `In one sentence max, what is one big theme or concern ${third} explores? (Examples: identity, power, family, memory, belonging)`,
-      focus: "Societal context",
-      hint: "Name one theme, then briefly say why the film cares about it.",
-      explanation:
-        "Theme is just the big idea a film keeps returning to. One clear idea is enough.",
-      maxWords: 18,
-      placeholder: "Example: It explores identity by showing characters trying to find where they belong.",
+      prompt: `Name one theme in ${filmB} and say why the film cares about it, in one sentence.`,
+      focus: "Interpretation",
+      hint: "A theme is a big idea the film keeps returning to — identity, power, family, memory, belonging.",
+      explanation: "Theme is the film's subject. Naming it plus a reason shows you're reading beyond plot.",
+      maxWords: 15,
+      placeholder: "It explores identity because the characters spend the whole film searching for where they belong.",
       acceptableAnswers: [
-        "identity",
-        "power",
-        "family",
-        "technology",
-        "class",
-        "memory",
-        "gender",
-        "violence",
-        "belonging",
-        "loss",
+        "identity", "power", "family", "memory", "belonging",
+        "loss", "class", "gender", "violence", "freedom",
       ],
       acceptableKeywords: [
-        "identity",
-        "power",
-        "family",
-        "technology",
-        "class",
-        "gender",
-        "memory",
-        "belonging",
-        "explores",
-        "shows",
+        "identity", "power", "family", "memory", "belonging",
+        "loss", "explores", "shows", "cares", "returns",
       ],
-      correctFeedback:
-        "Yes, exactly. You named a theme and connected it to the film.",
-      partialFeedback:
-        "You're on the right track. Add the theme word more directly (identity, power, family, etc.).",
-      incorrectFeedback:
-        "Not quite. Pick one theme word from the examples, then add one sentence about why the film cares about it.",
+      correctFeedback: "Good. You named a theme and connected it to the film's actual concern.",
+      partialFeedback: "You named something real — now add why the film keeps coming back to it.",
+      incorrectFeedback: "Not quite. Pick one theme word (identity, power, family) and say why the film cares about it.",
     },
+    // Q4 — Guided interpretation, short answer: technique + feeling in filmC
     {
       id: "q4",
       questionType: "short_answer",
-      prompt: `Pick one specific moment in ${first} and explain what ${archetype.conceptName.toLowerCase()} creates there in one sentence.`,
-      focus: archetype.conceptName,
-      hint: "Name one choice (like lighting or framing) and what feeling it creates.",
-      explanation:
-        "This anchors the concept to something real you saw, not abstract theory.",
+      prompt: `Pick one specific moment or technique in ${filmC} and say what feeling it creates, in one sentence.`,
+      focus: "Interpretation",
+      hint: "Name the technique (framing, sound, color, silence) and the emotion it produces.",
+      explanation: "Connecting a specific technique to a feeling is the core of film analysis.",
       maxWords: 18,
-      placeholder: "The close-up on the character's face shows doubt and hesitation.",
-      acceptableAnswers: archetype.conceptName
-        .toLowerCase()
-        .split(/[^a-z]+/)
-        .filter(Boolean),
-      acceptableKeywords: [
-        ...archetype.conceptName
-          .toLowerCase()
-          .split(/[^a-z]+/)
-          .filter(Boolean),
-        "close-up",
-        "lighting",
-        "silence",
-        "sound",
-        "color",
-        "framing",
-        "editing",
-        "moment",
+      placeholder: "The long silence before the final scene creates a feeling of dread and inevitability.",
+      acceptableAnswers: [
+        "close-up", "silence", "color", "framing", "sound",
+        "editing", "lighting", "pacing", "wide shot", "close shot",
       ],
-      correctFeedback:
-        "Correct. You grounded the concept in a specific choice and feeling.",
-      partialFeedback:
-        "You're on the right track. Name one specific film technique and what it helps the viewer notice or feel.",
-      incorrectFeedback:
-        "Not quite. Point to one specific choice on screen (like lighting, framing, or sound) and say what it creates.",
+      acceptableKeywords: [
+        "close-up", "silence", "color", "framing", "sound",
+        "creates", "feels", "makes", "produces", "builds",
+      ],
+      correctFeedback: "Exactly. Technique plus feeling — that's a film reading.",
+      partialFeedback: "Close. Name the specific technique more clearly, then say what feeling it creates.",
+      incorrectFeedback: "Not quite. Name one thing you see or hear on screen, then describe what feeling it creates.",
     },
+    // Q5 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
       id: "q5",
-      questionType: "short_answer",
-      prompt: `In one sentence, name one technique ${second} uses and explain what it makes you pay attention to.`,
-      focus: "Guided interpretation",
-      hint: "Example: 'Close-ups make me focus on the character's expression.'",
-      explanation: "Technique and effect—that's all you need for a reading.",
-      maxWords: 16,
-      placeholder: "Close-ups on the character's face make me focus on their doubt.",
-      acceptableAnswers: ["close-up", "silence", "color", "pacing", "framing", "sound", "editing", "lighting"],
-      acceptableKeywords: ["close-up", "silence", "color", "pacing", "framing", "sound", "focus", "attention", "watch", "notice"],
-      correctFeedback:
-        "Yes, exactly. You named a technique and what it makes the viewer notice.",
-      partialFeedback:
-        "You're close. Make sure you name the specific technique (like close-up or silence) and what it creates.",
-      incorrectFeedback:
-        "Not quite. Try: '[Technique] makes me notice [what you pay attention to].'",
+      questionType: "multiple_choice",
+      prompt: `Which of these in ${filmA} is an example of using framing to create emotional focus?`,
+      focus: "Transfer",
+      hint: "Think about a moment where where the camera placed you affected what you felt.",
+      explanation: "Recognizing a specific technique in context shows you can read film, not just describe it.",
+      options: [
+        "A tight close-up on a character's face during a moment of fear",
+        "A wide establishing shot introducing a new location",
+        "A cut to the next scene before the moment resolves",
+        "Background music swelling during a speech",
+      ],
+      correctAnswer: "A tight close-up on a character's face during a moment of fear",
+      correctFeedback: "Yes. That's framing creating emotional focus — the concept in action.",
+      partialFeedback: "Close. Focus on what the framing does to your attention, not just what it shows.",
+      incorrectFeedback: "Not quite. Think about what tight framing does to the viewer's focus and feeling.",
     },
+    // Q6 — Transfer APPLY (short answer) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
       id: "q6",
-      questionType: "multiple_choice",
-      prompt: `Now apply what you learned from ${first}: in ${fourth}, what would you look for to understand its mood?`,
-      focus: "Transfer",
-      hint: "You know how to read one film. What would help you read another?",
-      explanation: "Transfer is just using skills you already have on a new film.",
-      options: [
-        "How lighting and framing create atmosphere and focus",
-        "The director's complete filmography and career history",
-        "A detailed plot summary from start to finish",
-        "The actor's background and other roles they've played",
-      ],
-      correctAnswer: "How lighting and framing create atmosphere and focus",
-      correctFeedback:
-        "Yes, exactly. You're applying the same reading skills to a new film.",
-      partialFeedback:
-        "You're on the right track. Focus on the techniques (like lighting and framing) that you used to understand the first film.",
-      incorrectFeedback:
-        "Not quite. Think about what helped you understand ${first}'s mood. That same thing works for any film.",
-    },
-    {
-      id: "q7",
       questionType: "short_answer",
-      prompt: `Name one way ${archetype.conceptName} shows up in ${second}, just like it did in ${first}.`,
+      prompt: `Now find the same concept in ${filmB} — name one specific moment or technique, in one sentence.`,
       focus: "Transfer",
-      hint: "Name one technique in ${second} and how it's similar to ${first}.",
-      explanation: "Transfer means noticing the same pattern in a different film.",
+      hint: "Use the same lens you applied in Q5, but look at a different film.",
+      explanation: "Transfer means taking a concept you learned and finding it somewhere new.",
       maxWords: 18,
-      placeholder: "Both use close-ups and silence to show the character's doubt.",
-      acceptableAnswers: archetype.conceptName
-        .toLowerCase()
-        .split(/[^a-z]+/)
-        .filter(Boolean),
-      acceptableKeywords: [
-        ...archetype.conceptName
-          .toLowerCase()
-          .split(/[^a-z]+/)
-          .filter(Boolean),
-        "both",
-        "same",
-        "similar",
-        "close-up",
-        "silence",
-        "sound",
-        "framing",
-        "color",
+      placeholder: "In ${filmB}, a close-up during the confrontation scene creates the same feeling of dread.",
+      acceptableAnswers: [
+        "close-up", "framing", "silence", "sound", "color",
+        "lighting", "editing", "pacing", "moment", "technique",
       ],
-      correctFeedback:
-        "Correct. You found the pattern in both films.",
-      partialFeedback:
-        "You're on the right track. Name the technique and say how both films use it similarly.",
-      incorrectFeedback:
-        "Not quite. Mention one technique that appears in both films the same way.",
-    },
-    {
-      id: "q8",
-      questionType: "short_answer",
-      prompt: "In one sentence, name one technique or choice you will actively look for next time you watch a film.",
-      focus: "Reflection",
-      hint: "Be specific: lighting, framing, sound, editing, composition, or blocking.",
-      explanation: "The goal is to turn learning into a real viewing habit you can repeat.",
-      maxWords: 14,
-      placeholder: "I will look for how close-ups and silence show character doubt.",
-      acceptableAnswers: ["framing", "close-up", "color", "sound", "silence", "pacing", "editing", "blocking", "look for", "track"],
-      acceptableKeywords: ["look for", "track", "notice", "watch", "pay attention", "framing", "close-up", "color", "sound", "silence"],
-      correctFeedback:
-        "Correct. That's a concrete habit you can use in any film.",
-      partialFeedback:
-        "You're close. Name one specific technique clearly (like framing, sound, or color).",
-      incorrectFeedback:
-        "Not quite. Start with 'I will look for' and name one technique you saw in this quiz.",
+      acceptableKeywords: [
+        "close-up", "framing", "silence", "sound", "creates",
+        "feels", "makes", "scene", "moment", "technique",
+      ],
+      correctFeedback: "Correct. You applied the concept to a new film — that's the transfer skill.",
+      partialFeedback: "Close. Name the specific moment or technique in ${filmB} more clearly.",
+      incorrectFeedback: "Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.",
     },
   ];
 }
@@ -505,7 +476,7 @@ export function buildFallbackQuiz(
   return {
     title: "Practice with your Top 4",
     intro:
-      "Eight quick prompts: easy recognition first, then guided interpretation, then transfer and reflection. Keep each short answer to one sentence.",
+      "Six prompts: two recognition questions, two interpretation questions, then a transfer sequence across two films. Keep each short answer to one sentence.",
     transferConcept: {
       concept: archetype.conceptName,
       fromFilm,
