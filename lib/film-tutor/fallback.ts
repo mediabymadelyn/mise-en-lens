@@ -555,7 +555,7 @@ export function buildFallbackQuiz(
     : baseQuestions;
 
   const transferSeq = buildTransferSequence(films, archetype, wikiContext);
-  const { _verifyCorrectAnswer, _applyKeywords } = transferSeq as TransferSequence & {
+  const { _applyKeywords } = transferSeq as TransferSequence & {
     _verifyCorrectAnswer: string;
     _applyKeywords: string[];
   };
@@ -563,55 +563,58 @@ export function buildFallbackQuiz(
   // Overwrite Q5 (verify) and Q6 (apply) with TransferSequence-specific content
   const questions: QuizQuestion[] = enriched.map((q) => {
     if (q.id === "q5") {
+      // Build four plausible scene descriptions — all look like real moments.
+      // Correct answer paraphrases the teach statement rather than copying it.
+      const correctOption = `A scene in ${filmA} where a character relationship directly shapes the outcome`;
       return {
         id: "q5",
         questionType: "multiple_choice",
-        prompt: `Which of these in ${filmA} is an example of ${transferSeq.concept.toLowerCase()}?`,
+        prompt: `Which of these in ${filmA} best shows ${transferSeq.concept.toLowerCase()} at work?`,
         focus: "Transfer",
-        hint: "The correct answer should match something mentioned in the teach block above.",
-        explanation: "The verify step checks that you can recognize the concept in the film you just learned about.",
+        hint: `Think about which option involves a real character or moment — not just plot mechanics.`,
+        explanation: "The verify step checks that you can recognize the concept in a specific scene, not just name it.",
         options: [
-          _verifyCorrectAnswer,
-          `A plot twist that reframes the entire story`,
-          `Background music that signals the genre`,
-          `Dialogue that explains a character's motivation directly`,
+          correctOption,
+          `A moment where a character discovers new information that changes the plot`,
+          `A scene that introduces a secondary character who doesn't affect the main story`,
+          `An opening sequence that establishes the film's setting and time period`,
         ],
-        correctAnswer: _verifyCorrectAnswer,
-        correctFeedback: `Correct. That's ${transferSeq.concept.toLowerCase()} in action in ${filmA}.`,
-        partialFeedback: "Close. Look for the option that matches what the teach block described.",
-        incorrectFeedback: "Not quite. Re-read the teach block above — the correct answer references something mentioned there.",
+        correctAnswer: correctOption,
+        correctFeedback: `Yes. That kind of scene is where ${transferSeq.concept.toLowerCase()} actually lives in ${filmA}.`,
+        partialFeedback: "Think about which option describes something that actively involves the characters, not just the story mechanics.",
+        incorrectFeedback: `Not quite. Look for the option that describes a moment where characters are directly affecting each other.`,
       } satisfies QuizQuestion;
     }
 
     if (q.id === "q6") {
       const applyKeywords = _applyKeywords.length > 0
         ? _applyKeywords
-        : ["framing", "silence", "color", "sound", "close-up", "lighting"];
+        : ["framing", "silence", "color", "sound", "close-up", "family", "moment"];
       return {
         id: "q6",
         questionType: "short_answer",
         prompt: `Now find ${transferSeq.concept.toLowerCase()} in ${filmB} — name one specific moment or technique, in one sentence.`,
         focus: "Transfer",
-        hint: `Use the same lens from ${filmA}, but apply it to ${filmB}.`,
+        hint: `Describe one specific scene in ${filmB} where you can see ${transferSeq.concept.toLowerCase()} happening. You don't need a technical term — just name the moment.`,
         explanation: "Transfer means taking what you learned and finding it somewhere new.",
         maxWords: 18,
-        placeholder: `In ${filmB}, a close-up during a key scene creates the same kind of focus.`,
+        placeholder: `When [character] does [something], it shows ${transferSeq.concept.toLowerCase()} because [brief reason].`,
         acceptableAnswers: applyKeywords.slice(0, 4),
         acceptableKeywords: applyKeywords,
-        correctFeedback: `Correct. You applied ${transferSeq.concept.toLowerCase()} to a new film.`,
-        partialFeedback: `Close. Name the specific technique in ${filmB} more clearly and say what it creates.`,
-        incorrectFeedback: `Not quite. Pick one specific moment in ${filmB} and say what technique is used and what it creates.`,
-        scaffoldQuestion: `Just name one technique you notice in ${filmB} — one word is fine.`,
-        scaffoldHint: "Look for the same kind of craft choice described in the teach block above.",
+        correctFeedback: `Yes — you found a specific example in ${filmB}. That's the transfer.`,
+        partialFeedback: `You described a moment — now name the specific relationship or craft choice that makes ${transferSeq.concept.toLowerCase()} visible there.`,
+        incorrectFeedback: `Try describing one specific scene: who is in it, what happens, and what it shows about ${transferSeq.concept.toLowerCase()}.`,
+        scaffoldQuestion: `Just describe one scene in ${filmB} where two characters interact — what happens?`,
+        scaffoldHint: `Don't worry about the right term. Just describe a moment and we'll work from there.`,
         fallbackMultipleChoice: {
-          prompt: `Which of these shows ${transferSeq.concept.toLowerCase()} being used in ${filmB}?`,
+          prompt: `Which of these is a moment of ${transferSeq.concept.toLowerCase()} in ${filmB}?`,
           options: [
-            `A specific craft choice that focuses your attention on a character or moment`,
-            `The film's runtime and release year`,
-            `The nationality of the director`,
+            `A scene where a character relationship is tested or supported`,
+            `A scene where a character learns something from a book or newspaper`,
+            `The opening credits sequence`,
           ],
-          correctAnswer: `A specific craft choice that focuses your attention on a character or moment`,
-          explanation: `${transferSeq.concept} is always about a deliberate craft choice that shapes what you notice and feel.`,
+          correctAnswer: `A scene where a character relationship is tested or supported`,
+          explanation: `${transferSeq.concept} shows up whenever characters actively affect each other — that's the moment to look for.`,
         },
       } satisfies QuizQuestion;
     }

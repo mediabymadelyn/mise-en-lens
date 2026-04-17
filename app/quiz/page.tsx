@@ -39,6 +39,41 @@ type TutorTurn = {
   text: string;
 };
 
+// Definitions shown when a user asks "what is a [concept]" instead of attempting an answer.
+// These responses don't count as attempts.
+const CONCEPT_DEFINITIONS: Record<string, string> = {
+  theme:
+    "A theme is the big idea a film keeps returning to — not the plot, but the subject underneath it. Family, identity, power, loss, belonging. Try: 'It explores [one word] because [one reason the film keeps coming back to it].'",
+  technique:
+    "A film technique is a deliberate choice the director makes — how close the camera is (framing), what you hear (sound design, silence), what colors appear, how fast scenes cut. Pick one you can actually point to on screen.",
+  moment:
+    "A moment just means one specific scene or shot that stood out — something that happened on screen, not a summary of the whole film. You don't need a technical term to name it.",
+  mood:
+    "Mood is the overall feeling the film creates — tense, warm, melancholic, unsettling. Think about how you felt watching it, not what the plot was.",
+  tone:
+    "Tone is how the film 'speaks' — serious, playful, cold, urgent. It's the emotional atmosphere the director builds through visual and sound choices.",
+};
+
+function detectConceptQuestion(answer: string): string | null {
+  const n = answer.trim().toLowerCase();
+  for (const [concept, definition] of Object.entries(CONCEPT_DEFINITIONS)) {
+    if (
+      n.includes(`what is a ${concept}`) ||
+      n.includes(`what's a ${concept}`) ||
+      n.includes(`what is ${concept}`) ||
+      n.includes(`what does ${concept} mean`) ||
+      n === `${concept}?` ||
+      n === `define ${concept}`
+    ) {
+      return definition;
+    }
+  }
+  if (n === "?" || n.includes("what does that mean") || n.includes("i don't understand the question")) {
+    return "You can ask 'what is a theme', 'what is a technique', or 'what is a moment' and I'll explain it before you answer.";
+  }
+  return null;
+}
+
 const FILM_VOCAB = new Set([
   "framing", "close-up", "closeup", "wide shot", "long shot", "tracking",
   "montage", "editing", "cut", "cinematography", "lighting", "color",
@@ -56,12 +91,24 @@ function isVagueAnswer(answer: string): boolean {
   ].some((p) => n === p || n.includes(p));
 }
 
+// Separate from vague — user is saying they can't recall, not that they don't know the concept
+function isMemoryGap(answer: string): boolean {
+  const n = answer.trim().toLowerCase();
+  return [
+    "i dont remember", "i don't remember", "i can't remember", "i cant remember",
+    "i haven't seen", "i havent seen", "i don't recall", "i dont recall",
+    "i forget", "i forgot", "never seen", "haven't watched", "havent watched",
+  ].some((p) => n.includes(p));
+}
+
 function isOffTopic(
   answer: string,
   question: ShortAnswerQuestion,
   filmTitles: string[]
 ): boolean {
   const n = answer.trim().toLowerCase();
+  // Anything 5+ words long shows genuine engagement — not off-topic
+  if (n.split(/\s+/).filter(Boolean).length >= 5) return false;
   if (question.acceptableKeywords.some((k) => n.includes(k.toLowerCase()))) return false;
   if (filmTitles.some((t) => n.includes(t.toLowerCase()))) return false;
   return ![...FILM_VOCAB].some((w) => n.includes(w));
@@ -73,6 +120,7 @@ function evaluateShortAnswer(
   filmTitles: string[]
 ): "correct" | "partial" | "confused" {
   const n = answer.trim().toLowerCase();
+  const wordCount = n.split(/\s+/).filter(Boolean).length;
 
   if (isVagueAnswer(n) || isOffTopic(n, question, filmTitles)) {
     return "confused";
@@ -87,10 +135,20 @@ function evaluateShortAnswer(
     acceptableHit ||
     keywordMatches >= Math.max(1, Math.ceil(question.acceptableKeywords.length / 3))
   ) {
+    // Short single-concept answers (≤4 words) on questions that ask for TWO things
+    // (theme + why, technique + feeling) are partial — the student needs to add reasoning
+    const asksTwoThings = /\band\b/.test(question.prompt.toLowerCase()) &&
+      (question.prompt.toLowerCase().includes("say why") ||
+       question.prompt.toLowerCase().includes("what feeling") ||
+       question.prompt.toLowerCase().includes("in one sentence"));
+    if (asksTwoThings && wordCount <= 4) {
+      return "partial";
+    }
     return "correct";
   }
 
-  if (keywordMatches >= 1 || n.split(/\s+/).filter(Boolean).length >= 4) {
+  // 5+ word answers that engaged with the question are partial, not confused
+  if (keywordMatches >= 1 || wordCount >= 5) {
     return "partial";
   }
 
@@ -240,6 +298,32 @@ export default function QuizPage() {
         ...cur,
         { role: "tutor", text: "No worries. Give me one short sentence and we can build from there." },
       ]);
+      return;
+    }
+
+    // Concept questions ("what is a theme?") get a definition — not an attempt
+    const conceptReply = detectConceptQuestion(trimmed);
+    if (conceptReply) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        { role: "tutor", text: conceptReply },
+      ]);
+      setShortAnswer("");
+      return;
+    }
+
+    // Memory gaps ("i don't remember the movie") get a prompt toward the hint — not an attempt
+    if (isMemoryGap(trimmed)) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        {
+          role: "tutor",
+          text: `That's fine — use the hint below as a starting point. You can describe what you think might happen, or guess based on the genre. Even a rough answer is worth trying.`,
+        },
+      ]);
+      setShortAnswer("");
       return;
     }
 
@@ -639,12 +723,12 @@ export default function QuizPage() {
                     </button>
                   </div>
 
-                  <div
-                    className={`grid gap-4 md:grid-cols-2 transition ${
-                      questionStatus === "revealed" ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className="rounded-[1rem] bg-black/15 p-4">
+                  {hintText ? (
+                    <div
+                      className={`rounded-[1rem] bg-black/15 p-4 transition ${
+                        questionStatus === "revealed" ? "opacity-50" : ""
+                      }`}
+                    >
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
                         Hint
                       </p>
@@ -652,15 +736,7 @@ export default function QuizPage() {
                         {hintText}
                       </p>
                     </div>
-                    <div className="rounded-[1rem] bg-black/15 p-4">
-                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
-                        Why this question helps
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
-                        {activeQuestion.explanation}
-                      </p>
-                    </div>
-                  </div>
+                  ) : null}
 
                   {/* MC feedback panel */}
                   {activeQuestion.questionType === "multiple_choice" && questionStatus !== "idle" ? (
