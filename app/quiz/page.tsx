@@ -171,6 +171,7 @@ export default function QuizPage() {
   // Per-question state machine
   const [questionStatus, setQuestionStatus] = useState<QuestionStatus>("idle");
   const [attempts, setAttempts] = useState(0);
+  const [scaffoldStepIndex, setScaffoldStepIndex] = useState(0);
   const [showFallbackMC, setShowFallbackMC] = useState(false);
   const [fallbackMCSelected, setFallbackMCSelected] = useState("");
 
@@ -270,6 +271,7 @@ export default function QuizPage() {
     setShortAnswer("");
     setQuestionStatus("idle");
     setAttempts(0);
+    setScaffoldStepIndex(0);
     setShowFallbackMC(false);
     setFallbackMCSelected("");
 
@@ -343,18 +345,32 @@ export default function QuizPage() {
       return;
     }
 
-    // Second attempt exhausted
-    if (newAttempts >= 2) {
-      // Still confused at attempt 2 → offer fallback MC
-      if (evaluation === "confused" || questionStatus === "confused") {
+    if (evaluation === "confused") {
+      const steps = activeQuestion.scaffoldSteps;
+      const nextStepIdx = scaffoldStepIndex;
+
+      if (nextStepIdx < steps.length) {
+        // More scaffold steps available — show the next one
+        const step = steps[nextStepIdx];
+        setScaffoldStepIndex(nextStepIdx + 1);
+        setShortAnswerThread((cur) => [
+          ...cur,
+          { role: "tutor", text: step.prompt },
+        ]);
+        setQuestionStatus("confused");
+      } else {
+        // All scaffold steps exhausted → fallback MC
         setShortAnswerThread((cur) => [
           ...cur,
           { role: "tutor", text: "Let me give you some options to work with." },
         ]);
         setShowFallbackMC(true);
-        return;
       }
-      // Partial at attempt 2 → reveal
+      return;
+    }
+
+    // Partial at attempt 2+ → reveal
+    if (newAttempts >= 2) {
       const revealed = activeQuestion.acceptableAnswers[0] ?? "a specific technique or theme";
       setShortAnswerThread((cur) => [
         ...cur,
@@ -367,23 +383,12 @@ export default function QuizPage() {
       return;
     }
 
-    // First attempt: enter scaffold or partial mode
-    if (evaluation === "confused") {
-      setShortAnswerThread((cur) => [
-        ...cur,
-        {
-          role: "tutor",
-          text: `Let's make it smaller. ${activeQuestion.scaffoldQuestion}`,
-        },
-      ]);
-      setQuestionStatus("confused");
-    } else {
-      setShortAnswerThread((cur) => [
-        ...cur,
-        { role: "tutor", text: activeQuestion.partialFeedback },
-      ]);
-      setQuestionStatus("partial");
-    }
+    // First partial attempt
+    setShortAnswerThread((cur) => [
+      ...cur,
+      { role: "tutor", text: activeQuestion.partialFeedback },
+    ]);
+    setQuestionStatus("partial");
   }
 
   function handleFallbackMCSubmit() {
@@ -425,14 +430,12 @@ export default function QuizPage() {
   const isLastQuestion =
     quizData != null && questionIndex >= quizData.quiz.questions.length - 1;
 
-  // Determine hint text: use scaffold hint when confused at attempt 1
-  const hintText =
-    activeQuestion &&
-    questionStatus === "confused" &&
-    !showFallbackMC &&
-    activeQuestion.questionType === "short_answer"
-      ? activeQuestion.scaffoldHint
-      : activeQuestion?.hint ?? "";
+  // Hint text: when in scaffold mode show the current step's hint, otherwise the question hint
+  const currentScaffoldStep =
+    activeQuestion?.questionType === "short_answer" && questionStatus === "confused" && !showFallbackMC
+      ? activeQuestion.scaffoldSteps[scaffoldStepIndex - 1]
+      : undefined;
+  const hintText = currentScaffoldStep?.hint ?? activeQuestion?.hint ?? "";
 
   return (
     <main className="min-h-screen px-4 py-6 text-white sm:px-8 lg:px-12">
@@ -583,15 +586,16 @@ export default function QuizPage() {
                     <p className="mt-3 text-xl leading-8 text-white">{activeQuestion.prompt}</p>
                   </div>
 
-                  {/* Scaffold prompt — shown when confused (attempt 1, no fallback MC yet) */}
+                  {/* Scaffold prompt — shown when in scaffold mode (no fallback MC yet) */}
                   {questionStatus === "confused" &&
                     activeQuestion.questionType === "short_answer" &&
-                    !showFallbackMC ? (
+                    !showFallbackMC &&
+                    currentScaffoldStep ? (
                     <div className="rounded-[1.2rem] border border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/8 px-4 py-3 text-sm leading-6 text-[#ffd9b8]">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
-                        Simpler step
+                        Step {scaffoldStepIndex} of {activeQuestion.scaffoldSteps.length}
                       </p>
-                      <p className="mt-2">{activeQuestion.scaffoldQuestion}</p>
+                      <p className="mt-2">{currentScaffoldStep.prompt}</p>
                     </div>
                   ) : null}
 

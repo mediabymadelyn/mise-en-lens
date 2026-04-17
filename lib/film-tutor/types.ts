@@ -26,20 +26,26 @@ export type MultipleChoiceQuestion = QuizQuestionBase & {
   correctAnswer: string;
 };
 
+export type ScaffoldStep = {
+  prompt: string;
+  hint: string;
+  expectedFocus: string;
+};
+
 export type ShortAnswerQuestion = QuizQuestionBase & {
   questionType: "short_answer";
   maxWords: number;
   placeholder: string;
   acceptableAnswers: string[];
   acceptableKeywords: string[];
-  scaffoldQuestion: string;
-  scaffoldHint: string;
+  scaffoldSteps: ScaffoldStep[];
   fallbackMultipleChoice: {
     prompt: string;
     options: string[];
     correctAnswer: string;
     explanation: string;
   };
+  revealAnswerAfterFallback: boolean;
 };
 
 export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;
