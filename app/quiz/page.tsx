@@ -601,15 +601,15 @@ export default function QuizPage() {
                     </div>
                   ) : null}
 
-                  {/* Revealed answer panel */}
+                  {/* Revealed panel — for SA questions show the hint, not a single "correct" answer */}
                   {questionStatus === "revealed" ? (
                     <div className="rounded-[1.2rem] border border-white/20 bg-white/8 px-4 py-4 text-sm leading-6 text-white">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--text-muted)]">
-                        Answer
+                        {activeQuestion.questionType === "short_answer" ? "Things to look for" : "Answer"}
                       </p>
                       <p className="mt-2">
                         {activeQuestion.questionType === "short_answer"
-                          ? activeQuestion.acceptableAnswers[0] ?? "See the hint above."
+                          ? activeQuestion.hint
                           : activeQuestion.correctAnswer}
                       </p>
                     </div>
@@ -719,6 +719,19 @@ export default function QuizPage() {
                         className="rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isEvaluating ? "Evaluating…" : "Submit answer"}
+                      </button>
+                    ) : null}
+                    {/* Move on option — shown after 2+ attempts on stuck short-answer questions */}
+                    {activeQuestion.questionType === "short_answer" &&
+                      !canAdvance &&
+                      !showFallbackMC &&
+                      attempts >= 2 ? (
+                      <button
+                        type="button"
+                        onClick={() => setQuestionStatus("revealed")}
+                        className="rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-white/10"
+                      >
+                        Move on
                       </button>
                     ) : null}
                     <button
