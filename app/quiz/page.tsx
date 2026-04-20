@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import type { EvaluateRequest, EvaluateResponse, EvaluateVerdict } from "@/lib/film-tutor/evaluation-types";
 import type {
   FilmInput,
   QuizQuestion,
@@ -174,6 +175,7 @@ export default function QuizPage() {
   const [scaffoldStepIndex, setScaffoldStepIndex] = useState(0);
   const [showFallbackMC, setShowFallbackMC] = useState(false);
   const [fallbackMCSelected, setFallbackMCSelected] = useState("");
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   useEffect(() => {
     async function loadQuiz() {
@@ -274,6 +276,7 @@ export default function QuizPage() {
     setScaffoldStepIndex(0);
     setShowFallbackMC(false);
     setFallbackMCSelected("");
+    setIsEvaluating(false);
 
     if (activeQuestion?.questionType === "short_answer") {
       setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
@@ -282,7 +285,7 @@ export default function QuizPage() {
     }
   }, [activeQuestion]);
 
-  function handleSubmitAnswer() {
+  async function handleSubmitAnswer() {
     if (!activeQuestion) return;
 
     if (activeQuestion.questionType === "multiple_choice") {
@@ -303,63 +306,65 @@ export default function QuizPage() {
       return;
     }
 
-    // Concept questions ("what is a theme?") get a definition — not an attempt
-    const conceptReply = detectConceptQuestion(trimmed);
-    if (conceptReply) {
-      setShortAnswerThread((cur) => [
-        ...cur,
-        { role: "user", text: trimmed },
-        { role: "tutor", text: conceptReply },
-      ]);
-      setShortAnswer("");
-      return;
-    }
-
-    // Memory gaps ("i don't remember the movie") get a prompt toward the hint — not an attempt
-    if (isMemoryGap(trimmed)) {
-      setShortAnswerThread((cur) => [
-        ...cur,
-        { role: "user", text: trimmed },
-        {
-          role: "tutor",
-          text: `That's fine — use the hint below as a starting point. You can describe what you think might happen, or guess based on the genre. Even a rough answer is worth trying.`,
-        },
-      ]);
-      setShortAnswer("");
-      return;
-    }
-
-    const evaluation = evaluateShortAnswer(trimmed, activeQuestion, filmTitles);
-    const newAttempts = attempts + 1;
-
     setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
     setShortAnswer("");
-    setAttempts(newAttempts);
+    setIsEvaluating(true);
 
-    if (evaluation === "correct") {
+    let verdict: { ok: true; verdict: EvaluateVerdict; feedback: string; nextHint?: string };
+    try {
+      const filmInFocus = quizData?.quiz.transferConcept.filmA ?? (quizData?.films[0]?.title ?? "");
+      const payload: EvaluateRequest = {
+        question: activeQuestion,
+        studentAnswer: trimmed,
+        priorTurns: shortAnswerThread,
+        films: (quizData?.films ?? []) as FilmInput[],
+        filmInFocus,
+      };
+      const res = await fetch("/api/tutor/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as EvaluateResponse;
+      if (!data.ok) throw new Error(data.error);
+      verdict = data;
+    } catch {
+      // Network or server error — fall back to partial so the student can continue
       setShortAnswerThread((cur) => [
         ...cur,
-        { role: "tutor", text: activeQuestion.correctFeedback },
+        { role: "tutor", text: activeQuestion.partialFeedback },
       ]);
+      setQuestionStatus("partial");
+      setIsEvaluating(false);
+      return;
+    } finally {
+      setIsEvaluating(false);
+    }
+
+    // concept_question and memory_gap: push feedback, no attempt counted
+    if (verdict.verdict === "concept_question" || verdict.verdict === "memory_gap") {
+      setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
+      return;
+    }
+
+    const newAttempts = attempts + 1;
+    setAttempts(newAttempts);
+
+    if (verdict.verdict === "correct") {
+      setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
       setQuestionStatus("correct");
       return;
     }
 
-    if (evaluation === "confused") {
+    if (verdict.verdict === "off_base") {
       const steps = activeQuestion.scaffoldSteps;
       const nextStepIdx = scaffoldStepIndex;
-
       if (nextStepIdx < steps.length) {
-        // More scaffold steps available — show the next one
         const step = steps[nextStepIdx];
         setScaffoldStepIndex(nextStepIdx + 1);
-        setShortAnswerThread((cur) => [
-          ...cur,
-          { role: "tutor", text: step.prompt },
-        ]);
+        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
         setQuestionStatus("confused");
       } else {
-        // All scaffold steps exhausted → fallback MC
         setShortAnswerThread((cur) => [
           ...cur,
           { role: "tutor", text: "Let me give you some options to work with." },
@@ -369,25 +374,22 @@ export default function QuizPage() {
       return;
     }
 
-    // Partial at attempt 2+ → reveal
+    // partial
     if (newAttempts >= 2) {
-      const revealed = activeQuestion.acceptableAnswers[0] ?? "a specific technique or theme";
+      // Second partial: push LLM feedback and mark revealed (no acceptableAnswers reveal per spec)
       setShortAnswerThread((cur) => [
         ...cur,
-        {
-          role: "tutor",
-          text: `The answer is: ${revealed}. ${activeQuestion.incorrectFeedback} Let's keep going.`,
-        },
+        { role: "tutor", text: verdict.feedback },
       ]);
       setQuestionStatus("revealed");
       return;
     }
 
     // First partial attempt
-    setShortAnswerThread((cur) => [
-      ...cur,
-      { role: "tutor", text: activeQuestion.partialFeedback },
-    ]);
+    const tutorText = verdict.nextHint
+      ? `${verdict.feedback} ${verdict.nextHint}`
+      : verdict.feedback;
+    setShortAnswerThread((cur) => [...cur, { role: "tutor", text: tutorText }]);
     setQuestionStatus("partial");
   }
 
@@ -693,7 +695,8 @@ export default function QuizPage() {
                             value={shortAnswer}
                             onChange={(e) => setShortAnswer(e.target.value)}
                             placeholder={activeQuestion.placeholder}
-                            className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8"
+                            disabled={isEvaluating}
+                            className="min-h-28 w-full rounded-[1.1rem] border border-white/12 bg-white/6 px-4 py-4 text-base text-white outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-green)] focus:bg-white/8 disabled:opacity-50"
                           />
                           <p className="text-xs text-[var(--text-muted)]">
                             Keep it to about {activeQuestion.maxWords < 8 ? 15 : activeQuestion.maxWords} words or fewer.
@@ -707,14 +710,15 @@ export default function QuizPage() {
                     {!showFallbackMC ? (
                       <button
                         type="button"
-                        onClick={handleSubmitAnswer}
+                        onClick={() => { void handleSubmitAnswer(); }}
                         disabled={
                           canAdvance ||
+                          isEvaluating ||
                           (activeQuestion.questionType === "multiple_choice" && !selectedOption)
                         }
                         className="rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Submit answer
+                        {isEvaluating ? "Evaluating…" : "Submit answer"}
                       </button>
                     ) : null}
                     <button
