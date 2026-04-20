@@ -17,44 +17,129 @@ const evaluationSchema = {
         type: "string",
         enum: ["correct", "partial", "off_base", "concept_question", "memory_gap"],
       },
-      feedback: { type: "string" },
+      feedback: {
+        type: "string",
+        description: "One sentence. Must reference something specific the student wrote. No filler phrases.",
+      },
       nextHint: { type: "string" },
     },
     required: ["verdict", "feedback", "nextHint"],
   },
 } as const;
 
-function buildEvaluationPrompt(req: EvaluateRequest, wikiExtract: string): string {
-  const turns = req.priorTurns
-    .map((t) => `${t.role === "tutor" ? "Tutor" : "Student"}: ${t.text}`)
-    .join("\n");
+const systemPrompt = `You are evaluating a student's answer to a film analysis question. Your job is to determine if their reasoning is defensible based on the film's Wikipedia context.
+
+## VERDICT CATEGORIES (choose exactly one)
+
+**correct**: The student correctly identifies a scene/theme/technique AND explains how it relates to the question. Their reasoning is supported by the Wikipedia context.
+
+**partial**: The student identifies something correct but doesn't fully answer the question. Common cases:
+- Names a theme but doesn't cite a specific scene
+- Names a scene but doesn't explain how it connects to the theme/question
+- Gives a correct detail but misses the deeper analysis the question asks for
+
+**off_base**: The answer is wrong or unrelated. Cases:
+- Mentions events/characters not in the film's Wikipedia entry
+- Misinterprets the question completely
+- Gibberish or empty response
+- True statement about the film but doesn't address what was asked
+
+**concept_question**: The student is asking for clarification about a term in the question itself (e.g., "what is a technique?", "give me an example of a theme", "what does that mean"). DO NOT treat this as an answer attempt.
+
+**memory_gap**: The student explicitly says they don't remember the film or haven't seen it (e.g., "i forgot", "didn't watch it", "don't remember"). DO NOT treat this as an answer attempt.
+
+## EVALUATION RULES
+
+1. **For interpretation/analysis questions**: There is no single "right answer." ANY scene/theme supported by Wikipedia counts as correct IF the student explains the connection.
+
+2. **Strictness level**:
+   - Generous: Spelling, grammar, incomplete sentences don't matter
+   - Strict: The student must demonstrate understanding, not just name-drop
+
+3. **Wikipedia is ground truth**: If the student's claim isn't supported by the plot summary or themes section, it's off_base.
+
+4. **One sentence feedback**: Must reference something specific the student wrote. No filler phrases like "Great job!" or "Keep thinking!"
+
+## REASONING CHECKLIST (think through before deciding)
+
+Before choosing a verdict, ask yourself:
+1. Does the Wikipedia context support what the student said?
+2. Did the student answer the actual question, or just say something true about the film?
+3. If partial, what specific element are they missing?
+4. Is this a clarifying question about the prompt itself (concept_question)?
+5. Is this a statement about not remembering (memory_gap)?
+
+## EXAMPLES
+
+**Example 1:**
+Question: "Name a scene in Ponyo that shows friendship"
+Student: "when sauske and ponyo were on the boat it showed friendship"
+Wiki confirms: Characters Sasuke and Ponyo exist, boat scene exists, themes include friendship
+Verdict: correct
+Feedback: "The boat scene with Sasuke and Ponyo does demonstrate their friendship."
+
+**Example 2:**
+Question: "How does Little Miss Sunshine explore family dynamics?"
+Student: "when olive wanted to become a beauty queen and was sad"
+Verdict: partial
+Feedback: "You've identified Olive's beauty pageant storyline, but how does that scene show family dynamics?"
+NextHint: "Describe how the family members react to Olive's dream or how they support her."
+
+**Example 3:**
+Question: "Identify a cinematic technique in Juno"
+Student: "what is a technique"
+Verdict: concept_question
+Feedback: "A cinematic technique is a tool filmmakers use—like close-ups, lighting, music choices, or editing styles."
+
+**Example 4:**
+Question: "What theme appears in Spirited Away?"
+Student: "i don't remember this movie"
+Verdict: memory_gap
+Feedback: "That's okay—try using the hint button to refresh your memory about the film's plot."
+
+**Example 5:**
+Question: "Analyze the use of color in Amélie"
+Student: "pizza"
+Verdict: off_base
+Feedback: "Your answer doesn't address the question about color in Amélie."
+
+**Example 6:**
+Question: "How does Moonlight explore identity?"
+Student: "moonlight is about identity"
+Verdict: partial
+Feedback: "You've named the theme, but can you point to a specific scene that explores identity?"
+NextHint: "Think about a moment where Chiron's sense of self is challenged or revealed."
+
+## YOUR TASK
+
+Given the question, student answer, and Wikipedia context below, determine the verdict and write specific feedback. Respond ONLY with valid JSON matching the required schema.`;
+
+type WikiFields = { extract: string; plot?: string; themes?: string };
+
+function buildUserPrompt(req: EvaluateRequest, wikiFields: WikiFields | null): string {
+  const historyText =
+    req.priorTurns.length > 0
+      ? req.priorTurns.map((t) => `${t.role}: ${t.text}`).join("\n")
+      : "This is the first attempt.";
 
   return [
-    "You are Mise-en-Lens, a beginner-friendly film tutor evaluating a student's short-answer response.",
-    "Return JSON only.",
+    "QUESTION DETAILS:",
+    `- Focus: ${req.question.focus}`,
+    `- Prompt: "${req.question.prompt}"`,
+    `- Hint available: "${req.question.hint}"`,
     "",
-    `QUESTION: ${req.question.prompt}`,
-    `QUESTION FOCUS: ${req.question.focus}`,
-    `FILM IN FOCUS: ${req.filmInFocus}`,
+    `WIKIPEDIA CONTEXT FOR ${req.filmInFocus}:`,
+    `Extract: ${wikiFields?.extract ?? "Not available"}`,
+    `Plot: ${wikiFields?.plot ?? "Not available"}`,
+    `Themes: ${wikiFields?.themes ?? "Not available"}`,
     "",
-    wikiExtract
-      ? `WIKIPEDIA CONTEXT (use this for factual grounding):\n${wikiExtract}`
-      : "No Wikipedia context available — evaluate based on general film knowledge.",
+    "STUDENT ANSWER:",
+    `"${req.studentAnswer}"`,
     "",
-    "CONVERSATION SO FAR:",
-    turns,
-    `Student: ${req.studentAnswer}`,
+    "CONVERSATION HISTORY (prior attempts for this question):",
+    historyText,
     "",
-    "EVALUATION RULES:",
-    "1. If the student asks a clarifying question about a concept (e.g., 'what is a technique', 'what does that mean', 'give me an example', 'what is a theme'), return verdict 'concept_question' with feedback as a short one-sentence definition. Do NOT count this as an attempt.",
-    "2. If the student says they don't remember the film or haven't seen it, return verdict 'memory_gap' with supportive feedback pointing toward the hint. Do NOT count this as an attempt.",
-    "3. For interpretation and analysis questions (focus: Interpretation, Analysis, Apply, Transfer), ANY answer that is textually defensible given the wiki context counts as correct. Do not require the student to match a specific answer — there isn't one.",
-    "4. A scene or moment counts as valid if the wiki plot or themes support it showing what the student claims. Example: if the student says 'the boat scene shows friendship because they help each other', and the wiki confirms those characters travel together and friendship is a theme, mark it correct.",
-    "5. If the student names a valid theme or technique but does not elaborate when elaboration was asked for (the question prompt requires both identification AND reasoning), return 'partial' with a nextHint asking for the specific missing piece — e.g., 'You named the theme — now name one specific scene where the film shows that.'",
-    "6. If the answer is genuinely off-topic (unrelated to the film, gibberish), return 'off_base'.",
-    "7. If the answer is vague or too short to evaluate ('idk', 'not sure', one-word non-answer with no connection to the film), return 'off_base'.",
-    "8. feedback must be ONE sentence. It must reference something specific the student wrote. Never use filler phrases ('Great job!', 'That's a deep insight!', 'Exactly!'). If correct, say what was right. If partial, name what's right and what's still missing.",
-    "9. nextHint: if verdict is 'partial' or 'off_base', provide a one-sentence directional hint that names a concrete anchor (a character, scene, or technique). Otherwise return an empty string.",
+    "Evaluate this answer and respond with JSON only.",
   ].join("\n");
 }
 
@@ -107,15 +192,12 @@ export async function POST(request: Request) {
 
     // Fetch wiki context — filmInFocus first, then others up to Top 4
     const titlesToFetch = [filmInFocus, ...films.map((f) => f.title).filter((t) => t !== filmInFocus)].slice(0, 4);
-    let wikiExtract = "";
+    let wikiFields: WikiFields | null = null;
     try {
       const wikiContext = await fetchWikiContextForFilms(titlesToFetch);
       const ctx = wikiContext.get(filmInFocus);
       if (ctx) {
-        const parts = [ctx.extract];
-        if (ctx.plot) parts.push(`Plot synopsis:\n${ctx.plot}`);
-        if (ctx.themes) parts.push(`Themes:\n${ctx.themes}`);
-        wikiExtract = parts.join("\n\n");
+        wikiFields = { extract: ctx.extract, plot: ctx.plot ?? undefined, themes: ctx.themes ?? undefined };
       }
     } catch {
       // Proceed without wiki — heuristic fallback will handle if OpenAI also fails
@@ -126,7 +208,13 @@ export async function POST(request: Request) {
       return Response.json(heuristicFallback(body), { status: 200 });
     }
 
-    const prompt = buildEvaluationPrompt({ question, studentAnswer, priorTurns, films, filmInFocus }, wikiExtract);
+    console.log("=== EVALUATION REQUEST ===");
+    console.log("Question focus:", question.focus);
+    console.log("Question prompt:", question.prompt);
+    console.log("Student answer:", studentAnswer);
+    console.log("Attempts so far:", priorTurns.length);
+
+    const userPrompt = buildUserPrompt({ question, studentAnswer, priorTurns, films, filmInFocus }, wikiFields);
 
     try {
       const response = await fetch(OPENAI_URL, {
@@ -138,7 +226,10 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           model: DEFAULT_MODEL,
           store: false,
-          input: prompt,
+          input: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
           text: {
             format: {
               type: "json_schema",
@@ -177,6 +268,12 @@ export async function POST(request: Request) {
         feedback: string;
         nextHint: string;
       };
+
+      console.log("=== EVALUATION RESULT ===");
+      console.log("Verdict:", result.verdict);
+      console.log("Feedback:", result.feedback);
+      if (result.nextHint) console.log("Next hint:", result.nextHint);
+      console.log("========================\n");
 
       const successResponse: EvaluateResponse = {
         ok: true,
