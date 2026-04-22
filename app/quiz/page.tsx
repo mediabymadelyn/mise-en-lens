@@ -33,7 +33,15 @@ type Top4Response =
     };
 
 // Per-question state machine statuses
-type QuestionStatus = "idle" | "correct" | "partial" | "confused" | "revealed";
+type QuestionStatus = "idle" | "correct" | "partial" | "confused" | "revealed" | "exhausted";
+
+const SECTION_BY_INDEX = [
+  "Warm-Up", "Warm-Up",
+  "Interpretation", "Interpretation",
+  "Compare", "Compare",
+  "Transfer", "Transfer",
+  "Reflection",
+] as const;
 
 type TutorTurn = {
   role: "tutor" | "user";
@@ -177,6 +185,17 @@ export default function QuizPage() {
   const [fallbackMCSelected, setFallbackMCSelected] = useState("");
   const [isEvaluating, setIsEvaluating] = useState(false);
 
+  // IDK / off-topic tracking
+  const [consecutiveUncertain, setConsecutiveUncertain] = useState(0);
+  const [showUncertainActions, setShowUncertainActions] = useState(false);
+  const [consecutiveOffTopic, setConsecutiveOffTopic] = useState(0);
+
+  // MCQ dimming after second wrong attempt
+  const [dimmedOptions, setDimmedOptions] = useState<Set<string>>(new Set());
+
+  // Hint cycling
+  const [hintCycleIndex, setHintCycleIndex] = useState(0);
+
   useEffect(() => {
     async function loadQuiz() {
       const params = new URLSearchParams(window.location.search);
@@ -277,6 +296,11 @@ export default function QuizPage() {
     setShowFallbackMC(false);
     setFallbackMCSelected("");
     setIsEvaluating(false);
+    setConsecutiveUncertain(0);
+    setShowUncertainActions(false);
+    setConsecutiveOffTopic(0);
+    setDimmedOptions(new Set());
+    setHintCycleIndex(0);
 
     if (activeQuestion?.questionType === "short_answer") {
       setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
@@ -288,23 +312,62 @@ export default function QuizPage() {
   async function handleSubmitAnswer() {
     if (!activeQuestion) return;
 
+    // ── MCQ path ──────────────────────────────────────────────────────────────
     if (activeQuestion.questionType === "multiple_choice") {
       if (!selectedOption) return;
-      setQuestionStatus(selectedOption === activeQuestion.correctAnswer ? "correct" : "confused");
+      if (selectedOption === activeQuestion.correctAnswer) {
+        setQuestionStatus("correct");
+        return;
+      }
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        setQuestionStatus("exhausted");
+      } else {
+        setQuestionStatus("confused");
+        if (newAttempts === 2) {
+          // Dim 1-2 wrong options (prefer later positions in the list)
+          const wrongOpts = activeQuestion.options.filter(
+            (o) => o !== activeQuestion.correctAnswer
+          );
+          const toDim = new Set(wrongOpts.slice(-Math.min(2, wrongOpts.length - 1)));
+          setDimmedOptions(toDim);
+        }
+      }
       return;
     }
 
-    // Short answer — handle fallback MC submission separately
+    // ── Short answer path ─────────────────────────────────────────────────────
     if (showFallbackMC) return;
 
     const trimmed = shortAnswer.trim();
     if (!trimmed) {
       setShortAnswerThread((cur) => [
         ...cur,
-        { role: "tutor", text: "No worries. Give me one short sentence and we can build from there." },
+        { role: "tutor", text: "Give me one short sentence and we can build from there." },
       ]);
       return;
     }
+
+    // Intercept vague/idk before LLM — treat as uncertainty, not failure
+    if (isVagueAnswer(trimmed)) {
+      setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
+      setShortAnswer("");
+      const newConsecutive = consecutiveUncertain + 1;
+      setConsecutiveUncertain(newConsecutive);
+      if (newConsecutive >= 3) {
+        setShowUncertainActions(true);
+      } else {
+        setShortAnswerThread((cur) => [
+          ...cur,
+          { role: "tutor", text: "What part feels unclear — the film, the concept, or the question?" },
+        ]);
+      }
+      return; // No attempt counted
+    }
+
+    // Real answer — reset consecutive uncertain
+    setConsecutiveUncertain(0);
 
     setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
     setShortAnswer("");
@@ -329,7 +392,6 @@ export default function QuizPage() {
       if (!data.ok) throw new Error(data.error);
       verdict = data;
     } catch {
-      // Network or server error — fall back to partial so the student can continue
       setShortAnswerThread((cur) => [
         ...cur,
         { role: "tutor", text: activeQuestion.partialFeedback },
@@ -341,11 +403,37 @@ export default function QuizPage() {
       setIsEvaluating(false);
     }
 
-    // concept_question and memory_gap: push feedback, no attempt counted
+    // concept_question and memory_gap: no attempt counted
     if (verdict.verdict === "concept_question" || verdict.verdict === "memory_gap") {
       setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
       return;
     }
+
+    // off_base: first time = redirect with simpler version (no attempt); repeat = action row
+    if (verdict.verdict === "off_base") {
+      const newOffTopic = consecutiveOffTopic + 1;
+      setConsecutiveOffTopic(newOffTopic);
+      if (newOffTopic >= 2) {
+        setShortAnswerThread((cur) => [
+          ...cur,
+          { role: "tutor", text: "Let me offer a different approach." },
+        ]);
+        setShowUncertainActions(true);
+      } else {
+        const step = activeQuestion.scaffoldSteps[0];
+        if (step) {
+          setScaffoldStepIndex(1);
+          setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
+          setQuestionStatus("confused");
+        } else {
+          setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
+        }
+      }
+      return; // No attempt counted
+    }
+
+    // Reset off-topic counter on non-off_base
+    setConsecutiveOffTopic(0);
 
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
@@ -356,36 +444,7 @@ export default function QuizPage() {
       return;
     }
 
-    if (verdict.verdict === "off_base") {
-      const steps = activeQuestion.scaffoldSteps;
-      const nextStepIdx = scaffoldStepIndex;
-      if (nextStepIdx < steps.length) {
-        const step = steps[nextStepIdx];
-        setScaffoldStepIndex(nextStepIdx + 1);
-        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
-        setQuestionStatus("confused");
-      } else {
-        setShortAnswerThread((cur) => [
-          ...cur,
-          { role: "tutor", text: "Let me give you some options to work with." },
-        ]);
-        setShowFallbackMC(true);
-      }
-      return;
-    }
-
-    // partial
-    if (newAttempts >= 2) {
-      // Second partial: push LLM feedback and mark revealed (no acceptableAnswers reveal per spec)
-      setShortAnswerThread((cur) => [
-        ...cur,
-        { role: "tutor", text: verdict.feedback },
-      ]);
-      setQuestionStatus("revealed");
-      return;
-    }
-
-    // First partial attempt
+    // partial — never auto-reveal; Move on button appears at attempts >= 2
     const tutorText = verdict.nextHint
       ? `${verdict.feedback} ${verdict.nextHint}`
       : verdict.feedback;
@@ -393,10 +452,38 @@ export default function QuizPage() {
     setQuestionStatus("partial");
   }
 
+  function handleUncertainAction(action: "hint" | "mc" | "simpler" | "moveon") {
+    if (!activeQuestion || activeQuestion.questionType !== "short_answer") return;
+    setShowUncertainActions(false);
+    setConsecutiveUncertain(0);
+    setConsecutiveOffTopic(0);
+
+    if (action === "hint") {
+      setHintCycleIndex(0);
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "tutor", text: `Here is a hint: ${activeQuestion.hint}` },
+      ]);
+    } else if (action === "mc") {
+      if (activeQuestion.fallbackMultipleChoice) {
+        setShowFallbackMC(true);
+      }
+    } else if (action === "simpler") {
+      const step = activeQuestion.scaffoldSteps[0];
+      if (step) {
+        setScaffoldStepIndex(1);
+        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
+        setQuestionStatus("confused");
+      }
+    } else {
+      setQuestionStatus("revealed");
+    }
+  }
+
   function handleFallbackMCSubmit() {
     if (!activeQuestion || activeQuestion.questionType !== "short_answer") return;
     const mc = activeQuestion.fallbackMultipleChoice;
-    if (!fallbackMCSelected) return;
+    if (!mc || !fallbackMCSelected) return;
 
     if (fallbackMCSelected === mc.correctAnswer) {
       setShortAnswerThread((cur) => [
@@ -427,17 +514,37 @@ export default function QuizPage() {
   }
 
   const canAdvance =
-    questionStatus === "correct" || questionStatus === "revealed";
+    questionStatus === "correct" || questionStatus === "revealed" || questionStatus === "exhausted";
 
   const isLastQuestion =
     quizData != null && questionIndex >= quizData.quiz.questions.length - 1;
 
-  // Hint text: when in scaffold mode show the current step's hint, otherwise the question hint
+  // Scaffold step shown when in confused mode
   const currentScaffoldStep =
     activeQuestion?.questionType === "short_answer" && questionStatus === "confused" && !showFallbackMC
       ? activeQuestion.scaffoldSteps[scaffoldStepIndex - 1]
       : undefined;
-  const hintText = currentScaffoldStep?.hint ?? activeQuestion?.hint ?? "";
+
+  // Hint cycling: primary hint → scaffold step hint → concept definition
+  const availableHints = useMemo(() => {
+    if (!activeQuestion) return [] as string[];
+    const hints: string[] = [activeQuestion.hint];
+    if (currentScaffoldStep?.hint && currentScaffoldStep.hint !== activeQuestion.hint) {
+      hints.push(currentScaffoldStep.hint);
+    }
+    for (const word of Object.keys(CONCEPT_DEFINITIONS)) {
+      if (
+        activeQuestion.prompt.toLowerCase().includes(word) ||
+        activeQuestion.focus.toLowerCase().includes(word)
+      ) {
+        hints.push(CONCEPT_DEFINITIONS[word]);
+        break;
+      }
+    }
+    return hints;
+  }, [activeQuestion, currentScaffoldStep]);
+
+  const hintText = availableHints[hintCycleIndex % Math.max(1, availableHints.length)] ?? "";
 
   return (
     <main className="min-h-screen px-4 py-6 text-white sm:px-8 lg:px-12">
@@ -549,12 +656,12 @@ export default function QuizPage() {
                       <h2 className="mt-2 font-serif text-3xl text-white">Question {questionIndex + 1}</h2>
                     </div>
                     <div className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-[var(--text-soft)]">
-                      {questionIndex + 1}/{quizData.quiz.questions.length}
+                      Question {questionIndex + 1} of {quizData.quiz.questions.length} &middot; {SECTION_BY_INDEX[questionIndex] ?? ""}
                     </div>
                   </div>
 
-                  {/* Transfer teach block — shown before Q5 (index 4) */}
-                  {questionIndex === 4 ? (
+                  {/* Transfer teach block — shown before Q7 (index 6) */}
+                  {questionIndex === 6 ? (
                     <div className="rounded-[1.2rem] border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/10 px-4 py-3 text-sm leading-6 text-[#d4ebfa]">
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
                         Learn this first
@@ -574,6 +681,11 @@ export default function QuizPage() {
                     </div>
                   ) : null}
 
+                  {/* Section header */}
+                  <p className="text-xs font-semibold tracking-[0.28em] uppercase text-[var(--accent-blue)]">
+                    {SECTION_BY_INDEX[questionIndex] ?? ""}
+                  </p>
+
                   {/* Question prompt — dimmed when scaffold is active */}
                   <div
                     className={`rounded-[1.35rem] border border-white/10 bg-white/5 p-5 transition ${
@@ -582,9 +694,16 @@ export default function QuizPage() {
                         : ""
                     }`}
                   >
-                    <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-green)]">
-                      Focus: {activeQuestion.focus}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-green)]">
+                        Focus: {activeQuestion.focus}
+                      </p>
+                      {activeQuestion.focus === "Reflection" ? (
+                        <span className="rounded-full border border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.14em] uppercase text-[var(--accent-blue)]/80">
+                          Reflection — no wrong answers
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="mt-3 text-xl leading-8 text-white">{activeQuestion.prompt}</p>
                   </div>
 
@@ -624,10 +743,10 @@ export default function QuizPage() {
                           disabled={questionStatus !== "idle" && questionStatus !== "confused"}
                           onClick={() => setSelectedOption(option)}
                           className={`rounded-[1.1rem] border px-4 py-4 text-left text-sm font-medium transition ${
-                            questionStatus === "correct" && option === activeQuestion.correctAnswer
-                              ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
-                              : questionStatus !== "idle" && questionStatus !== "confused" && option === activeQuestion.correctAnswer
-                                ? "border-[var(--accent-green)]/50 bg-[var(--accent-green)]/6 text-white"
+                            dimmedOptions.has(option)
+                              ? "opacity-35 border-white/10 bg-white/5 text-[var(--text-soft)]"
+                              : questionStatus === "correct" && option === activeQuestion.correctAnswer
+                                ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
                                 : selectedOption === option
                                   ? "border-[var(--accent-green)] bg-[var(--accent-green)]/12 text-white"
                                   : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
@@ -636,6 +755,13 @@ export default function QuizPage() {
                           {option}
                         </button>
                       ))}
+                      {questionStatus === "confused" ? (
+                        <p className="text-center text-xs text-[var(--text-muted)]">
+                          {attempts === 2
+                            ? "One more try. A hint has been added below."
+                            : "Give it another try."}
+                        </p>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -655,8 +781,8 @@ export default function QuizPage() {
                         ))}
                       </div>
 
-                      {/* Fallback MC — replaces textarea when confused at attempt 2 */}
-                      {showFallbackMC ? (
+                      {/* Fallback MC — replaces textarea when triggered */}
+                      {showFallbackMC && activeQuestion.fallbackMultipleChoice ? (
                         <div className="space-y-3 rounded-[1.1rem] border border-white/10 bg-white/5 p-4">
                           <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-blue)]">
                             Pick one
@@ -689,7 +815,47 @@ export default function QuizPage() {
                             Submit
                           </button>
                         </div>
-                      ) : questionStatus !== "correct" && questionStatus !== "revealed" ? (
+                      ) : showUncertainActions && !canAdvance ? (
+                        <div className="rounded-[1.1rem] border border-white/10 bg-white/5 p-4 space-y-3">
+                          <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--text-muted)]">
+                            Pick one to continue
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUncertainAction("hint")}
+                              className="rounded-[1rem] border border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/8 px-4 py-2.5 text-sm font-semibold text-[#ffd9b8] transition hover:bg-[var(--accent-orange)]/15"
+                            >
+                              Hint
+                            </button>
+                            {activeQuestion.fallbackMultipleChoice ? (
+                              <button
+                                type="button"
+                                onClick={() => handleUncertainAction("mc")}
+                                className="rounded-[1rem] border border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/8 px-4 py-2.5 text-sm font-semibold text-[#d4ebfa] transition hover:bg-[var(--accent-blue)]/15"
+                              >
+                                Multiple choice version
+                              </button>
+                            ) : null}
+                            {activeQuestion.scaffoldSteps.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleUncertainAction("simpler")}
+                                className="rounded-[1rem] border border-white/15 bg-white/6 px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
+                              >
+                                Simpler version
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => handleUncertainAction("moveon")}
+                              className="rounded-[1rem] border border-white/15 bg-white/6 px-4 py-2.5 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-white/10"
+                            >
+                              Move on
+                            </button>
+                          </div>
+                        </div>
+                      ) : questionStatus !== "correct" && questionStatus !== "revealed" && questionStatus !== "exhausted" ? (
                         <>
                           <textarea
                             value={shortAnswer}
@@ -721,10 +887,11 @@ export default function QuizPage() {
                         {isEvaluating ? "Evaluating…" : "Submit answer"}
                       </button>
                     ) : null}
-                    {/* Move on option — shown after 2+ attempts on stuck short-answer questions */}
+                    {/* Move on option — shown after 2+ attempts on short-answer questions */}
                     {activeQuestion.questionType === "short_answer" &&
                       !canAdvance &&
                       !showFallbackMC &&
+                      !showUncertainActions &&
                       attempts >= 2 ? (
                       <button
                         type="button"
@@ -750,9 +917,20 @@ export default function QuizPage() {
                         questionStatus === "revealed" ? "opacity-50" : ""
                       }`}
                     >
-                      <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
-                        Hint
-                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
+                          Hint
+                        </p>
+                        {availableHints.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => setHintCycleIndex((i) => i + 1)}
+                            className="text-xs text-[var(--text-muted)] underline-offset-2 hover:text-[var(--text-soft)] hover:underline"
+                          >
+                            Show a different hint
+                          </button>
+                        ) : null}
+                      </div>
                       <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
                         {hintText}
                       </p>
@@ -765,12 +943,18 @@ export default function QuizPage() {
                       className={`rounded-[1.2rem] border px-4 py-4 text-sm leading-7 ${
                         questionStatus === "correct"
                           ? "border-[var(--accent-green)]/30 bg-[var(--accent-green)]/10 text-[#d7f8d8]"
-                          : "border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/10 text-[#ffd9b8]"
+                          : questionStatus === "exhausted"
+                            ? "border-white/10 bg-white/5 text-[var(--text-soft)]"
+                            : "border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/10 text-[#ffd9b8]"
                       }`}
                     >
                       {questionStatus === "correct"
                         ? activeQuestion.correctFeedback
-                        : activeQuestion.incorrectFeedback}
+                        : questionStatus === "exhausted"
+                          ? "Let's keep going."
+                          : attempts === 1
+                            ? "Not quite — try again."
+                            : activeQuestion.hint}
                     </div>
                   ) : null}
 

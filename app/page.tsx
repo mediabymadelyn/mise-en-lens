@@ -205,7 +205,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => { setShowManual((v) => !v); setConfirmedFilms(null); setLookupError(null); }}
-                  className="text-xs text-[var(--text-muted)] underline-offset-2 hover:text-[var(--text-soft)] hover:underline"
+                  className="h-12 w-full rounded-[1.25rem] border border-[var(--accent-green)]/40 bg-[var(--accent-green)]/8 px-5 text-sm font-semibold text-[var(--accent-green)] transition hover:bg-[var(--accent-green)]/15"
                 >
                   {showManual ? "Hide manual entry" : "No Letterboxd? Enter films manually"}
                 </button>
@@ -334,6 +334,17 @@ export default function Home() {
                       </button>
                     </div>
                   ) : null}
+                </div>
+              ) : null}
+
+              {lesson ? (
+                <div className="flex justify-center py-1">
+                  <svg
+                    className="h-5 w-5 text-[var(--accent-green)] opacity-60 motion-safe:animate-bounce"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               ) : null}
 
@@ -512,6 +523,15 @@ export default function Home() {
                     </div>
                   </article>
                 ))}
+              </div>
+
+              <div className="flex justify-center py-1 lg:hidden">
+                <svg
+                  className="h-5 w-5 text-[var(--accent-blue)] opacity-60 motion-safe:animate-bounce"
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
             </div>
 

@@ -168,249 +168,268 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
   const filmA = films[0]?.title ?? "one of your favorites";
   const filmB = films[1]?.title ?? "another film in your Top 4";
   const filmC = films[2]?.title ?? "a third favorite";
+  const concept = archetype.conceptName;
 
   return [
-    // Q1 — Recognition, multiple choice: easy fact from filmA
+    // Q1 — Warm-Up, multiple choice: analytical question about filmA
     {
       id: "q1",
       questionType: "multiple_choice",
-      prompt: `What best describes the genre or style of ${filmA}?`,
-      focus: "Recognition",
-      hint: "Think about how the film feels overall — its genre or the type of story it tells.",
-      explanation: "Recognizing genre helps you know what visual and narrative tools to expect.",
+      prompt: `What does the visual style of ${filmA} most strongly suggest about the story's themes?`,
+      focus: "Warm-Up",
+      hint: "Think about the overall mood the film's look creates — color palette, how scenes are lit, the pace of cuts.",
+      explanation: "Visual style is the director's argument — how a film looks is inseparable from what it means.",
       options: [
         archetype.key === "animation"
-          ? "Animated feature with an emotional, visually expressive story"
+          ? "That emotion and identity can be communicated purely through color, shape, and movement"
           : archetype.key === "horror"
-            ? "A horror film that uses atmosphere and tension over jump scares"
+            ? "That danger and dread live in what the frame withholds, not just what it shows"
             : archetype.key === "romance"
-              ? "A romantic drama focused on emotional relationships and intimacy"
+              ? "That intimacy and distance are visible in how bodies and space are arranged on screen"
               : archetype.key === "sciFi"
-                ? "A science-fiction film exploring ideas through visual world-building"
+                ? "That ideas and power structures can be embodied in the look and design of a world"
                 : archetype.key === "crime"
-                  ? "A crime or thriller film with moral ambiguity and tension"
-                  : "A drama with a strong point of view and intentional visual style",
-        "A fast-paced action blockbuster with big set pieces",
-        "A documentary focused on historical events",
-        "A comedy built around improvised dialogue",
+                  ? "That moral ambiguity is visible in lighting, framing, and whose perspective we share"
+                  : "That how a film looks is inseparable from what it is trying to say",
+        "That big-budget production values are what make a film effective",
+        "That realism is always more emotionally effective than stylization",
+        "That visual choices are purely decorative and secondary to plot",
       ],
       correctAnswer:
         archetype.key === "animation"
-          ? "Animated feature with an emotional, visually expressive story"
+          ? "That emotion and identity can be communicated purely through color, shape, and movement"
           : archetype.key === "horror"
-            ? "A horror film that uses atmosphere and tension over jump scares"
+            ? "That danger and dread live in what the frame withholds, not just what it shows"
             : archetype.key === "romance"
-              ? "A romantic drama focused on emotional relationships and intimacy"
+              ? "That intimacy and distance are visible in how bodies and space are arranged on screen"
               : archetype.key === "sciFi"
-                ? "A science-fiction film exploring ideas through visual world-building"
+                ? "That ideas and power structures can be embodied in the look and design of a world"
                 : archetype.key === "crime"
-                  ? "A crime or thriller film with moral ambiguity and tension"
-                  : "A drama with a strong point of view and intentional visual style",
-      correctFeedback: "Correct. That's the genre foundation — now you can notice which techniques go with it.",
-      partialFeedback: "Close. Look at the genre more broadly — what category of film does it belong to?",
-      incorrectFeedback: "Not quite. Think about the overall type of story and how it makes you feel.",
+                  ? "That moral ambiguity is visible in lighting, framing, and whose perspective we share"
+                  : "That how a film looks is inseparable from what it is trying to say",
+      correctFeedback: `You identified the connection between visual style and meaning in ${filmA}.`,
+      partialFeedback: "Think about what the film's look communicates — not just how it feels, but what it argues.",
+      incorrectFeedback: "Consider what the director's visual choices are doing to your understanding of the story, not just your emotions.",
     },
-    // Q2 — Recognition, multiple choice: mood/tone of filmA
+    // Q2 — Warm-Up, multiple choice: symbolism or technique in filmA
     {
       id: "q2",
       questionType: "multiple_choice",
-      prompt: `Which of these best describes the mood or tone of ${filmA}?`,
-      focus: "Recognition",
-      hint: "Think about the feeling the film leaves you with — not the plot, the atmosphere.",
-      explanation: "Identifying tone is a first step toward noticing which techniques create it.",
+      prompt: `In ${filmA}, what do recurring visual or sound elements most likely represent?`,
+      focus: "Warm-Up",
+      hint: "Think about something you noticed more than once — a color, object, sound, or kind of shot. What does the film keep returning to?",
+      explanation: "Recurring elements are deliberate — directors use repetition to build meaning across a film.",
       options:
         archetype.key === "horror"
           ? [
-              "Slow-building dread with unsettling silence and off-screen threat",
-              "Playful and light, with upbeat music and bright visuals",
-              "Epic and triumphant, building toward a hopeful ending",
-              "Nostalgic and warm, focused on childhood memory",
+              "Psychological states — fear, control, and the collapse of safety",
+              "The production schedule and budget constraints of the shoot",
+              "The director's personal nostalgia for a specific era",
+              "Generic atmosphere with no specific thematic intent",
             ]
           : archetype.key === "romance"
             ? [
-                "Intimate and melancholic, with long pauses and restrained performance",
-                "Loud and chaotic, driven by confrontation and action",
-                "Satirical and comedic, mocking its own genre conventions",
-                "Urgent and thriller-like, with fast cuts and rising stakes",
+                "The emotional distance or closeness between characters",
+                "The film's country of production and local customs",
+                "Generic visual flair with no connection to the story",
+                "The era in which the film was made rather than its themes",
               ]
             : archetype.key === "sciFi"
               ? [
-                  "Cold and contemplative, using visual design to express ideas",
-                  "Warm and nostalgic, centered on family and belonging",
-                  "Comedic and fast-paced, with slapstick and exaggeration",
-                  "Romantic and emotional, driven by personal loss",
+                  "Power, surveillance, or what society gains and loses through technology",
+                  "The technical difficulty of producing the film's visual effects",
+                  "Pure spectacle disconnected from the film's ideas",
+                  "The director's biography rather than the story's themes",
                 ]
               : archetype.key === "crime"
                 ? [
-                    "Tense and morally ambiguous, with slow reveals and ethical weight",
-                    "Optimistic and energetic, with clear heroes and villains",
-                    "Dreamlike and surreal, ignoring narrative logic",
-                    "Comedic and self-aware, playing with genre clichés",
+                    "Who holds power and how guilt and innocence are assigned",
+                    "The logistical details of how crimes are planned",
+                    "Background texture with no deeper significance",
+                    "Stylistic trends from the decade the film was made",
                   ]
                 : [
-                    "Deliberate and atmospheric, rewarding close attention",
-                    "Fast and surface-level, focused purely on entertainment",
-                    "Chaotic and improvised, with no clear visual intent",
-                    "Nostalgic and crowd-pleasing, avoiding difficult emotions",
+                    "The film's central thematic concerns — what it keeps returning to",
+                    "Random visual choices made during production",
+                    "Purely technical demonstrations of the cinematographer's skill",
+                    "Nostalgia for a specific period rather than a thematic idea",
                   ],
       correctAnswer:
         archetype.key === "horror"
-          ? "Slow-building dread with unsettling silence and off-screen threat"
+          ? "Psychological states — fear, control, and the collapse of safety"
           : archetype.key === "romance"
-            ? "Intimate and melancholic, with long pauses and restrained performance"
+            ? "The emotional distance or closeness between characters"
             : archetype.key === "sciFi"
-              ? "Cold and contemplative, using visual design to express ideas"
+              ? "Power, surveillance, or what society gains and loses through technology"
               : archetype.key === "crime"
-                ? "Tense and morally ambiguous, with slow reveals and ethical weight"
-                : "Deliberate and atmospheric, rewarding close attention",
-      correctFeedback: "Yes. You identified the tone — that's the starting point for reading technique.",
-      partialFeedback: "You're in the right area. Think specifically about the atmosphere, not the story.",
-      incorrectFeedback: `Not quite. Think about how ${filmA} makes you feel, not what happens in it.`,
+                ? "Who holds power and how guilt and innocence are assigned"
+                : "The film's central thematic concerns — what it keeps returning to",
+      correctFeedback: `You connected the film's visual pattern to its thematic argument.`,
+      partialFeedback: "You're close — now say what that element is pointing at, not just what it looks or sounds like.",
+      incorrectFeedback: `Think about what ${filmA} keeps returning to visually or sonically, and what that repetition is building toward.`,
     },
-    // Q3 — Interpretation: identify a theme in filmB (one task only)
+    // Q3 — Interpretation: theme + evidence in filmB
     {
       id: "q3",
       questionType: "short_answer",
-      prompt: `What is one theme in ${filmB}? Name it and point to one specific character or moment that shows it.`,
+      prompt: `What do you think ${filmB} is saying about power, belonging, or identity? Name one specific moment that shows it.`,
       focus: "Interpretation",
-      hint: "A theme is a big idea the film keeps returning to — try: identity, power, family, memory, or belonging. Then name one character or scene where that idea appears.",
-      explanation: "Naming a theme with a concrete anchor shows you're reading beyond plot.",
-      maxWords: 14,
-      placeholder: "Family — the film keeps showing characters who can't escape their parents' choices.",
+      hint: "Pick one of those ideas — power, belonging, or identity — and name one scene or character moment where the film makes a point about it.",
+      explanation: "Naming what a film argues, with a scene to back it, is the foundation of film analysis.",
+      maxWords: 18,
+      placeholder: "The film argues that belonging is earned through sacrifice — the ending scene shows this.",
       acceptableAnswers: [
-        "identity", "power", "family", "memory", "belonging",
-        "loss", "class", "gender", "violence", "freedom",
+        "power", "belonging", "identity", "family", "memory",
+        "loss", "freedom", "isolation", "connection", "control",
       ],
       acceptableKeywords: [
-        "identity", "power", "family", "memory", "belonging",
-        "loss", "explores", "shows", "character", "moment",
+        "says", "argues", "shows", "suggests", "reveals",
+        "character", "scene", "moment", "because", "when",
       ],
-      correctFeedback: "Good — you named a theme and grounded it in something specific from the film.",
-      partialFeedback: "You named the theme — now add one character or scene that shows it.",
-      incorrectFeedback: "Pick one theme word (identity, power, family) and name one moment in the film where it appears.",
+      correctFeedback: "You named what the film is arguing and anchored it in a specific moment.",
+      partialFeedback: "You named the idea — now say one specific scene or character moment where the film makes that point.",
+      incorrectFeedback: "Pick one theme word (power, belonging, identity) and name one scene where the film does something with it.",
       scaffoldSteps: [
         {
-          prompt: `Just name one theme in ${filmB} — one word or short phrase is fine.`,
-          hint: "Try one of these: identity, power, family, memory, belonging, loss.",
+          prompt: `What is one big idea ${filmB} keeps returning to? Just name it — one word or short phrase.`,
+          hint: "Try one of these: power, belonging, identity, memory, loss, freedom.",
           expectedFocus: "identifies a named theme",
         },
         {
-          prompt: `Good. Now name one character or scene in ${filmB} that shows that theme.`,
-          hint: `Think about a specific moment — who is in it, and what are they doing or going through?`,
-          expectedFocus: "grounds theme in a concrete story element",
+          prompt: `Good. Now name one specific scene or character in ${filmB} where that idea shows up.`,
+          hint: "Think about a moment that stood out — who is in it, what do they do or say.",
+          expectedFocus: "grounds theme in a concrete scene or character",
         },
       ],
       fallbackMultipleChoice: {
-        prompt: `Which of these is a theme in ${filmB}?`,
-        options: ["Identity and belonging", "Space travel and technology", "Medieval warfare"],
-        correctAnswer: "Identity and belonging",
-        explanation: "Identity and belonging are the themes most character-driven films keep returning to.",
+        prompt: `Which of these best describes something ${filmB} seems to be about?`,
+        options: ["Power, belonging, or identity", "Outer space and technology", "Medieval history"],
+        correctAnswer: "Power, belonging, or identity",
+        explanation: "Most character-driven films return to one of these — they are the territory where personal and social conflicts meet.",
       },
       revealAnswerAfterFallback: true,
     },
-    // Q4 — Interpretation: scene + what it shows in filmB
+    // Q4 — Interpretation: scene meaning in filmB
     {
       id: "q4",
       questionType: "short_answer",
-      prompt: `Pick one specific scene or moment in ${filmB}. What does it show about a character or the film's theme?`,
+      prompt: `Pick one specific scene or moment in ${filmB}. What does it reveal about a character or the film's central idea?`,
       focus: "Interpretation",
-      hint: `Name the scene first — who is in it, what happens. Then say what it reveals about the character or the theme.`,
-      explanation: "Connecting a specific scene to a character or theme is the core move in film analysis.",
+      hint: `Name the scene first — who is in it, what happens. Then say what it reveals about the character or the film's argument.`,
+      explanation: "Connecting a specific moment to what the film is arguing is the core move in film analysis.",
       maxWords: 18,
       placeholder: "When the protagonist refuses to leave, it shows that belonging matters more to them than safety.",
       acceptableAnswers: [
-        "close-up", "silence", "color", "framing", "sound",
-        "editing", "lighting", "character", "moment", "scene",
+        "reveals", "shows", "character", "theme", "moment",
+        "scene", "meaning", "because", "when", "how",
       ],
       acceptableKeywords: [
         "shows", "reveals", "tells", "character", "theme",
         "moment", "scene", "because", "when", "how",
       ],
-      correctFeedback: "Exactly — you connected a specific moment to what the film is saying.",
-      partialFeedback: "You named a moment — now say what it shows about the character or the theme.",
-      incorrectFeedback: "Pick one scene and say what it reveals — not just what happens, but what it means.",
+      correctFeedback: "You connected a specific scene to what the film is saying.",
+      partialFeedback: "You named a moment — now say what it reveals about the character or the theme.",
+      incorrectFeedback: "Pick one scene and say what it means — not just what happens, but what the film is doing through it.",
       scaffoldSteps: [
         {
-          prompt: `Name one specific scene or moment in ${filmB} — just describe what happens.`,
-          hint: "Don't worry about analysis yet. Just name the scene: who is in it, what do they do.",
+          prompt: `Name one specific scene or moment in ${filmB}. Just describe what happens.`,
+          hint: "Don't analyze yet — just name the scene: who is in it, what do they do.",
           expectedFocus: "identifies a concrete scene",
         },
         {
-          prompt: `What does that scene show about the character or theme? What is the film saying through it?`,
-          hint: "Ask yourself: why did the director include this moment? What do they want you to understand?",
+          prompt: `What does that scene reveal about a character or the film's central idea?`,
+          hint: "Ask: why did the director include this moment? What does it make you understand about the character or story?",
           expectedFocus: "interprets scene as meaningful, not just descriptive",
         },
       ],
       fallbackMultipleChoice: {
-        prompt: `Which of these best describes what a scene in ${filmB} might show?`,
+        prompt: `Which of these best describes what a scene in ${filmB} might reveal?`,
         options: [
-          "A character who can't let go of the past, showing a theme of memory",
-          "The film's budget affecting the set design",
+          "A character's defining motivation or a theme the film keeps returning to",
+          "The film's production budget",
           "The director's personal biography",
         ],
-        correctAnswer: "A character who can't let go of the past, showing a theme of memory",
-        explanation: "Scenes reveal character and theme when a director chooses to linger on them — that's the connection to look for.",
+        correctAnswer: "A character's defining motivation or a theme the film keeps returning to",
+        explanation: "Directors choose to linger on certain scenes because they carry weight — they reveal character or push the film's central idea forward.",
       },
       revealAnswerAfterFallback: true,
     },
-    // Q5 — Analysis: technique + what it communicates in filmC
+    // Q5 — Compare: filmA vs filmB on shared concept
     {
       id: "q5",
       questionType: "short_answer",
-      prompt: `In ${filmC}, name one specific visual or storytelling technique. What does the director show about the character or theme through it?`,
-      focus: "Analysis",
-      hint: "Try: close-up, silence, color, framing, slow motion, or editing pace. Name it, then say what it communicates — not just what it feels like.",
-      explanation: "Naming technique and purpose is the move that turns description into film analysis.",
-      maxWords: 18,
-      placeholder: "Repeated close-ups on hands show that control is the film's central theme.",
+      prompt: `Both ${filmA} and ${filmB} explore ${concept.toLowerCase()}. How does each film approach it differently? Name one specific moment from either film.`,
+      focus: "Compare",
+      hint: `Think about one scene in ${filmA} and one in ${filmB}. What does each film do differently with ${concept.toLowerCase()}?`,
+      explanation: `Comparing how two films handle the same concept shows you how style, tone, and context shape meaning.`,
+      maxWords: 20,
+      placeholder: `${filmA} shows ${concept.toLowerCase()} through isolation, while ${filmB} does it through conflict.`,
       acceptableAnswers: [
-        "close-up", "silence", "color", "framing", "editing",
-        "lighting", "slow motion", "sound design", "wide shot", "pacing",
+        "different", "while", "whereas", "compared", "contrast",
+        "one", "another", "both", "but", "unlike",
       ],
       acceptableKeywords: [
-        "shows", "communicates", "reveals", "director", "technique",
-        "character", "theme", "means", "through", "when",
+        "different", "while", "whereas", "compared", "contrast",
+        "scene", "moment", "shows", "through", "both",
       ],
-      correctFeedback: "Good — you named a technique and explained what the director is communicating through it.",
-      partialFeedback: "You named the technique — now say what the director is showing about the character or theme through it.",
-      incorrectFeedback: "Pick one thing you see or hear on screen, name it, then say what the director is arguing through it.",
+      correctFeedback: `You identified how ${filmA} and ${filmB} handle ${concept.toLowerCase()} differently — that's the compare move.`,
+      partialFeedback: "You described one film — now say something about the other so you're actually comparing.",
+      incorrectFeedback: `Name one thing each film does with ${concept.toLowerCase()} — they don't have to be opposites, just different.`,
       scaffoldSteps: [
         {
-          prompt: `Name one technique you notice in ${filmC} — one word or short phrase (close-up, silence, color, framing).`,
-          hint: "Pick something concrete you can see or hear on screen. Gut feeling is fine at this step.",
-          expectedFocus: "names a specific technique",
+          prompt: `Think about ${filmA}. Name one moment or scene where ${concept.toLowerCase()} shows up.`,
+          hint: `Just name the moment — who is in it, what happens. Don't worry about ${filmB} yet.`,
+          expectedFocus: "locates a concrete moment in Film A",
         },
         {
-          prompt: `Good. What is the director showing about the character or the theme by using that technique?`,
-          hint: "Ask: why would a director make that choice? What do they want you to understand?",
-          expectedFocus: "connects technique to director's intent or thematic meaning",
-        },
-        {
-          prompt: `Can you name a specific scene in ${filmC} where you see that technique? Describe it briefly.`,
-          hint: "Just name the moment — who is in it, what's happening on screen.",
-          expectedFocus: "grounds the technique in a concrete scene",
+          prompt: `Good. Now think about ${filmB}. Does it handle ${concept.toLowerCase()} in a similar or different way? Name one moment.`,
+          hint: `Name a scene from ${filmB} and say what it does differently from what you described in ${filmA}.`,
+          expectedFocus: "identifies a contrast or parallel with Film B",
         },
       ],
-      fallbackMultipleChoice: {
-        prompt: `Which of these describes a director using technique deliberately?`,
-        options: [
-          "A close-up on a character's face to make you feel their fear",
-          "The film's running time",
-          "The country where the film was shot",
-        ],
-        correctAnswer: "A close-up on a character's face to make you feel their fear",
-        explanation: "Close-ups are a deliberate choice — the director decides to exclude the world and put you inside the character's experience.",
-      },
-      revealAnswerAfterFallback: true,
     },
-    // Q6 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
+    // Q6 — Compare: filmA vs filmC on shared concept
     {
       id: "q6",
+      questionType: "short_answer",
+      prompt: `Both ${filmA} and ${filmC} use visual style to communicate their themes. Which film does it more effectively, in your view? Name one moment from each.`,
+      focus: "Compare",
+      hint: `Think about a specific scene in ${filmA} and a specific scene in ${filmC}. What does each one do visually that makes the theme clear?`,
+      explanation: "Comparing visual strategies across films trains you to see technique as a series of deliberate choices, not just style.",
+      maxWords: 20,
+      placeholder: `${filmA} uses framing to isolate characters, while ${filmC} uses color to signal emotional states.`,
+      acceptableAnswers: [
+        "visually", "style", "framing", "color", "lighting",
+        "shot", "scene", "technique", "moment", "effective",
+      ],
+      acceptableKeywords: [
+        "visual", "style", "while", "whereas", "scene",
+        "moment", "technique", "shows", "through", "both",
+      ],
+      correctFeedback: `You compared the visual strategies of ${filmA} and ${filmC} — that's close reading across films.`,
+      partialFeedback: "You named a technique in one film — now say something about the other so you're comparing.",
+      incorrectFeedback: `Name one visual choice in ${filmA} and one in ${filmC} — then say what makes each effective or not.`,
+      scaffoldSteps: [
+        {
+          prompt: `Name one visual technique you notice in ${filmA} — just name it: framing, color, lighting, slow motion.`,
+          hint: "Pick something concrete you can see on screen in that film.",
+          expectedFocus: "names a specific visual technique in Film A",
+        },
+        {
+          prompt: `Good. Does ${filmC} use a similar technique, or a different one? Name what it does and say what changes.`,
+          hint: `Look for a scene in ${filmC} that uses a similar or contrasting visual choice. Name the scene briefly.`,
+          expectedFocus: "identifies a visual parallel or contrast in Film C",
+        },
+      ],
+    },
+    // Q7 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
+    {
+      id: "q7",
       questionType: "multiple_choice",
       prompt: `Which of these in ${filmA} is an example of using framing to create emotional focus?`,
-      focus: "Apply",
-      hint: "Think about a moment where the camera placement affected what you noticed or felt.",
-      explanation: "Recognizing a specific technique in context shows you can read film, not just describe it.",
+      focus: "Transfer",
+      hint: "Think about a moment where the camera placement directed what you noticed or felt.",
+      explanation: "Recognizing a specific technique in context shows you can read film, not just name ideas.",
       options: [
         "A tight close-up on a character's face during a moment of fear",
         "A wide establishing shot introducing a new location",
@@ -418,17 +437,17 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         "Background music swelling during a speech",
       ],
       correctAnswer: "A tight close-up on a character's face during a moment of fear",
-      correctFeedback: "Yes. That's framing creating emotional focus — the concept in action.",
+      correctFeedback: "You recognized framing being used to shape emotional experience — the concept in action.",
       partialFeedback: "Focus on what the framing does to your attention, not just what it shows.",
       incorrectFeedback: "Think about what tight framing does to the viewer's focus and feeling.",
     },
-    // Q7 — Transfer APPLY (short answer) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
+    // Q8 — Transfer APPLY (short answer) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
-      id: "q7",
+      id: "q8",
       questionType: "short_answer",
       prompt: `Now find the same concept in ${filmB} — describe one specific moment or technique in one sentence.`,
-      focus: "Apply",
-      hint: "Use the same lens from the teach block, but look at a different film.",
+      focus: "Transfer",
+      hint: "Use the same lens as the teach block above, but apply it to a different film.",
       explanation: "Transfer means taking a concept you learned and finding it somewhere new.",
       maxWords: 18,
       placeholder: `In ${filmB}, a close-up during a key scene puts you inside the character's experience.`,
@@ -440,7 +459,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         "close-up", "framing", "silence", "sound", "creates",
         "shows", "scene", "moment", "technique", "character",
       ],
-      correctFeedback: "Correct — you applied the concept to a new film. That's the transfer.",
+      correctFeedback: "You applied the concept to a new film. That's the transfer.",
       partialFeedback: `You described a moment — name the specific technique or craft choice that makes it work in ${filmB}.`,
       incorrectFeedback: `Pick one specific moment in ${filmB} and say what technique is used and what it shows.`,
       scaffoldSteps: [
@@ -450,67 +469,50 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
           expectedFocus: "locates a concrete scene in Film B",
         },
         {
-          prompt: `What technique does the director use in that scene — and what does it show?`,
+          prompt: `What technique does the director use in that scene, and what does it show?`,
           hint: "Look for: close-up, framing, silence, color, editing pace. Then say what the director is communicating.",
           expectedFocus: "connects technique to meaning in Film B",
         },
       ],
       fallbackMultipleChoice: {
-        prompt: `Which of these shows a craft technique being used deliberately in ${filmB}?`,
+        prompt: `Which of these best describes a moment of ${concept.toLowerCase()} in ${filmB}?`,
         options: [
-          "A close-up that focuses attention on a character's emotion",
-          "The film's running time",
-          "The country where the film was made",
+          "A scene where a character relationship is tested or shaped",
+          "A scene where a character learns something from a newspaper",
+          "The opening credits sequence",
         ],
-        correctAnswer: "A close-up that focuses attention on a character's emotion",
-        explanation: "Close-ups are one of the most direct ways a director guides what you pay attention to.",
+        correctAnswer: "A scene where a character relationship is tested or shaped",
+        explanation: `${concept} shows up whenever characters actively affect each other — that's the moment to find.`,
       },
       revealAnswerAfterFallback: false,
     },
-    // Q8 — Transfer SYNTHESIS (short answer) — placeholder, overwritten by buildFallbackQuiz
+    // Q9 — Reflection (no fallbackMultipleChoice, no revealAnswerAfterFallback)
     {
-      id: "q8",
+      id: "q9",
       questionType: "short_answer",
-      prompt: `You've seen this concept in ${filmA} and ${filmB}. In both cases, what is the director trying to make you understand or feel?`,
-      focus: "Transfer",
-      hint: `Think about what both films have in common — not what happens, but what the director is doing to you as a viewer. What's the shared purpose?`,
-      explanation: "Transfer means you can name a concept, find it in multiple films, and say what it does — that's the capstone of film literacy.",
-      maxWords: 20,
-      placeholder: `In both films, the director uses tight framing to make personal struggle feel inescapable.`,
-      acceptableAnswers: [
-        "both", "director", "viewer", "understand", "feel",
-        "shows", "creates", "purpose", "technique", "meaning",
-      ],
-      acceptableKeywords: [
-        "both", "same", "director", "shows", "creates",
-        "feel", "understand", "technique", "viewer", "meaning",
-      ],
-      correctFeedback: "Excellent — you drew a cross-film conclusion about what the technique does. That's film literacy.",
-      partialFeedback: "You named what happens in one film — now say what both films are doing with the same idea.",
-      incorrectFeedback: "Think about the shared purpose: what does the director in both cases want you to understand or feel?",
+      prompt: "Which moment in any of your Top 4 films affected you the most? How did the film create that impact?",
+      focus: "Reflection",
+      hint: "Think about a specific scene that stayed with you. What did the film do — visually, through sound, or through the story — to make it land?",
+      explanation: "Reflection questions have no wrong answers — the goal is to connect your experience to how the film was made.",
+      maxWords: 25,
+      placeholder: "The ending of [film] stayed with me because the silence made the loss feel real.",
+      acceptableAnswers: ["moment", "scene", "because", "felt", "when", "affected", "impact"],
+      acceptableKeywords: ["moment", "scene", "impact", "felt", "film", "when", "because", "stayed"],
+      correctFeedback: "That kind of specific, personal observation — grounded in how the film was made — is exactly what film literacy looks like.",
+      partialFeedback: "You named a moment — now say what the film did to create that impact.",
+      incorrectFeedback: "Think about one specific scene and say why it stayed with you.",
       scaffoldSteps: [
         {
-          prompt: `You've seen this concept in both films. What does it do in ${filmA} — what does the director want you to feel?`,
-          hint: `Think about a specific moment in ${filmA} and what the director chose to show you through it.`,
-          expectedFocus: "articulates director intent in Film A",
+          prompt: "Just name one film or scene that stayed with you after watching — don't analyze yet.",
+          hint: "It doesn't need to be the 'best' moment. Just name the one that comes to mind.",
+          expectedFocus: "identifies a specific moment or film",
         },
         {
-          prompt: `Does the same concept do something similar in ${filmB}? Say what the director is communicating there too.`,
-          hint: `You don't need new words — just say what the director in ${filmB} wants you to understand through the same technique.`,
-          expectedFocus: "articulates director intent in Film B and begins comparing",
+          prompt: "What did the film do to create that impact — what technique, choice, or element?",
+          hint: "Think about lighting, music, silence, framing, performance, or how the story ended.",
+          expectedFocus: "connects impact to a specific cinematic choice",
         },
       ],
-      fallbackMultipleChoice: {
-        prompt: `What do directors usually want you to feel when they use this technique repeatedly across a film?`,
-        options: [
-          "A deeper connection to the character or theme — you're being drawn inside their world",
-          "Confusion — they want you to lose track of the story",
-          "Distance — they want you to stay detached and analytical",
-        ],
-        correctAnswer: "A deeper connection to the character or theme — you're being drawn inside their world",
-        explanation: "Repeated use of a technique is never accidental — directors use it to make you feel what the character feels, or to keep returning your attention to the film's central idea.",
-      },
-      revealAnswerAfterFallback: false,
     },
   ];
 }
@@ -665,8 +667,8 @@ function buildTransferSequence(
     filmA,
     filmB,
     teachStatement,
-    verifyQuestionId: "q6",
-    applyQuestionId: "q7",
+    verifyQuestionId: "q7",
+    applyQuestionId: "q8",
     // Store derived values on the sequence for use when building Q5/Q6
     _verifyCorrectAnswer: verifyCorrectAnswer,
     _applyKeywords: applyKeywords,
@@ -692,13 +694,13 @@ export function buildFallbackQuiz(
     _applyKeywords: string[];
   };
 
-  // Overwrite Q6 (verify MC) and Q7 (apply SA) with TransferSequence-specific content
+  // Overwrite Q7 (verify MC) and Q8 (apply SA) with TransferSequence-specific content
   const questions: QuizQuestion[] = enriched.map((q) => {
-    if (q.id === "q6") {
+    if (q.id === "q7") {
       // Build four plausible scene descriptions — correct answer paraphrases, never copies, the teachStatement.
       const correctOption = `A scene in ${filmA} where a character relationship directly shapes the outcome`;
       return {
-        id: "q6",
+        id: "q7",
         questionType: "multiple_choice",
         prompt: `Which of these in ${filmA} best shows ${transferSeq.concept.toLowerCase()} at work?`,
         focus: "Apply",
@@ -717,12 +719,12 @@ export function buildFallbackQuiz(
       } satisfies QuizQuestion;
     }
 
-    if (q.id === "q7") {
+    if (q.id === "q8") {
       const applyKeywords = _applyKeywords.length > 0
         ? _applyKeywords
         : ["framing", "silence", "color", "sound", "close-up", "family", "moment"];
       return {
-        id: "q7",
+        id: "q8",
         questionType: "short_answer",
         prompt: `Now find ${transferSeq.concept.toLowerCase()} in ${filmB} — describe one specific moment or technique in one sentence.`,
         focus: "Apply",
@@ -774,7 +776,7 @@ export function buildFallbackQuiz(
   return {
     title: "Practice with your Top 4",
     intro:
-      "Eight prompts: two recognition questions, three interpretation and analysis questions, two application questions, and one transfer question. Keep each short answer to one sentence.",
+      "Nine prompts across five sections: warm up, interpretation, compare, transfer, and reflection. Keep each short answer to one or two sentences.",
     transferConcept: cleanTransfer,
     questions,
   };

@@ -39,13 +39,13 @@ export type ShortAnswerQuestion = QuizQuestionBase & {
   acceptableAnswers: string[];
   acceptableKeywords: string[];
   scaffoldSteps: ScaffoldStep[];
-  fallbackMultipleChoice: {
+  fallbackMultipleChoice?: {
     prompt: string;
     options: string[];
     correctAnswer: string;
     explanation: string;
   };
-  revealAnswerAfterFallback: boolean;
+  revealAnswerAfterFallback?: boolean;
 };
 
 export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;
@@ -54,9 +54,9 @@ export type TransferSequence = {
   concept: string;
   filmA: string;
   filmB: string;
-  teachStatement: string;  // 2-3 sentences rendered above Q5
-  verifyQuestionId: string; // references Q5 by id
-  applyQuestionId: string;  // references Q6 by id
+  teachStatement: string;  // 2-3 sentences rendered above Q7
+  verifyQuestionId: string; // references Q7 by id
+  applyQuestionId: string;  // references Q8 by id
 };
 
 export type TutorLessonPayload = {
