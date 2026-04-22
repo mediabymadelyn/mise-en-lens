@@ -976,6 +976,11 @@ export default function QuizPage() {
                         {isEvaluating ? "Evaluating…" : "Submit answer"}
                       </button>
                     ) : null}
+                    {isEvaluating ? (
+                      <span className="self-center animate-pulse text-xs text-[var(--text-muted)]">
+                        Checking your answer…
+                      </span>
+                    ) : null}
                     {/* Move on option — shown after 2+ attempts on short-answer questions */}
                     {activeQuestion.questionType === "short_answer" &&
                       !canAdvance &&
