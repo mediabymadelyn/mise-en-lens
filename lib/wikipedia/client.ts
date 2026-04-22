@@ -11,9 +11,13 @@ export type WikiFilmContext = {
 
 const TIMEOUT_MS = 8000;
 const MAX_SECTION_WORDS = 500;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const USER_AGENT = "MiseEnLens/1.0 (film tutor app; contact: joelawalsh@gmail.com)";
 const REST_BASE = "https://en.wikipedia.org/api/rest_v1";
 const ACTION_BASE = "https://en.wikipedia.org/w/api.php";
+
+type CacheEntry = { value: WikiFilmContext | null; expiresAt: number };
+const wikiCache = new Map<string, CacheEntry>();
 
 const PLOT_NAMES = new Set(["plot", "synopsis", "plot summary"]);
 const THEME_NAMES = new Set(["themes", "thematic analysis", "thematic content"]);
@@ -194,8 +198,23 @@ async function fetchSingleFilm(
 export async function fetchWikiContextForFilms(
   filmTitles: string[]
 ): Promise<Map<string, WikiFilmContext | null>> {
+  const now = Date.now();
+  const contextMap = new Map<string, WikiFilmContext | null>();
+  const titlesToFetch: string[] = [];
+
+  for (const title of filmTitles) {
+    const cached = wikiCache.get(title);
+    if (cached && cached.expiresAt > now) {
+      contextMap.set(title, cached.value);
+    } else {
+      titlesToFetch.push(title);
+    }
+  }
+
+  if (titlesToFetch.length === 0) return contextMap;
+
   const results = await Promise.allSettled(
-    filmTitles.map((title) =>
+    titlesToFetch.map((title) =>
       withTimeout(fetchSingleFilm(title), TIMEOUT_MS).catch((error) => {
         console.warn(`Wikipedia lookup failed for "${title}":`, error);
         return null;
@@ -203,13 +222,11 @@ export async function fetchWikiContextForFilms(
     )
   );
 
-  const contextMap = new Map<string, WikiFilmContext | null>();
-  filmTitles.forEach((title, index) => {
+  titlesToFetch.forEach((title, index) => {
     const result = results[index];
-    contextMap.set(
-      title,
-      result.status === "fulfilled" ? result.value : null
-    );
+    const value = result.status === "fulfilled" ? result.value : null;
+    wikiCache.set(title, { value, expiresAt: now + CACHE_TTL_MS });
+    contextMap.set(title, value);
   });
 
   return contextMap;
