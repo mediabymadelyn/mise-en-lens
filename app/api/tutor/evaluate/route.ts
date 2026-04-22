@@ -412,11 +412,19 @@ export async function POST(request: Request) {
         );
       };
 
+      const interpretationOverrideAlreadySent = priorTurns.some(
+        (t) => t.role === "tutor" && t.text.includes("You already named a recognizable moment")
+      );
+      const compareOverrideAlreadySent = priorTurns.some(
+        (t) => t.role === "tutor" && t.text.includes("You made a real comparison and grounded it")
+      );
+
       const adjustedResult =
         question.focus === "Interpretation" &&
         result.verdict === "partial" &&
         hasRecognizableSceneReference(studentAnswer, wikiFields) &&
-        !hasInterpretationSignal(studentAnswer)
+        !hasInterpretationSignal(studentAnswer) &&
+        !interpretationOverrideAlreadySent
           ? {
               ...result,
               feedback:
@@ -427,7 +435,8 @@ export async function POST(request: Request) {
           : question.focus === "Compare" &&
               result.verdict === "partial" &&
               hasCompareClaim(studentAnswer) &&
-              (hasCompareEvidenceCue(studentAnswer) || hasRecognizableSceneReference(studentAnswer, wikiFields))
+              (hasCompareEvidenceCue(studentAnswer) || hasRecognizableSceneReference(studentAnswer, wikiFields)) &&
+              !compareOverrideAlreadySent
             ? {
                 ...result,
                 feedback:
