@@ -58,7 +58,15 @@ Do NOT return partial if the student gave both pieces in rough form — that is 
 
 4. **Wikipedia is ground truth**: If the student's specific factual claim isn't supported by the plot summary or themes section, it's off_base.
 
-5. **One sentence feedback**: Must reference something specific the student wrote. No filler phrases like "Great job!" or "Keep thinking!" or "That's a great observation!"
+5. **Accept paraphrased scene references**: For interpretation questions, treat informal moment references as valid scene grounding when they can be mapped to a real event in the Wikipedia context (plot/themes/extract). Examples that count as scene references: "before going on stage", "when Olive was nervous", "during the pageant", "after she messed up on stage", "when her family was supporting her at the end".
+
+6. **Do not repeat the same missing-piece prompt**: If a recognizable scene/moment is already present, do not ask the student to name a specific moment again. Instead, ask for the next missing piece (for example, what that moment suggests about the character/theme/concept).
+
+7. **For compare questions, use a compare rubric**: Evaluate three components separately: (a) a real similarity/difference claim across films, (b) evidence or a recognizable moment from at least one film, and (c) a connection between the evidence and the claim. Do not require polished wording.
+
+8. **For compare questions, do not over-require scene detail**: If the student already makes a valid compare claim and starts grounding it in one or more moments, keep the verdict at least partial and ask only for the missing compare piece. Do not restart with "name a specific scene".
+
+9. **One sentence feedback**: Must reference something specific the student wrote. No filler phrases like "Great job!" or "Keep thinking!" or "That's a great observation!"
 
 ## REASONING CHECKLIST (think through before deciding)
 
@@ -135,7 +143,44 @@ Given the question, student answer, and Wikipedia context below, determine the v
 
 type WikiFields = { extract: string; plot?: string; themes?: string };
 
-function buildUserPrompt(req: EvaluateRequest, wikiFields: WikiFields | null): string {
+const SCENE_CUE_REGEX = /\b(when|during|before|after|scene|moment|at the end|in the end|on stage)\b/i;
+const RELATIONAL_EVENT_REGEX = /\b(conversation|talking|talked|tell|told|asking|asked|argued|arguing|argument|gave|give|advice|support|helped|help|discover|discovered|found|find|decided|decide|learned|learn|reali[sz]ed|exploded|crashed|collapsed|fell|died|killed|attacked|fought|escaped|defeated|destroyed|broke|shattered|revealed|exposed|uncovered|shouted|screamed|cried|laughed|embraced|transformed|changed|turned|became|appeared|disappeared|faded|glowed|shined|burned|melted|froze|danced|sang|played|acted|performed|chased|ran|walked|drove|flew|jumped|climbed|swam|sailed|won|lost|failed|succeeded|betrayed|trusted|loved|hated|feared|surprised|shocked|revealed|hidden|showed|displayed)\b|\b(with|to|from|between)\s+\w+\s*(dad|mom|mother|father|parent|friend|family|guy|girl|boyfriend|girlfriend|teacher|coach|brother|sister|grandpa|grandma|robot|ai|alien|creature|monster|character|protagonist|antagonist|villain|hero|king|queen|lord|lady|prince|princess|soldier|warrior|officer|detective|spy|thief)\b|\b(sequence|act|scene|shot|frame|cut|moment|part|opening|ending|climax|finale|battle|chase|fight|dance|song|performance|funeral|wedding|party|dinner|breakfast|lunch|night|day|morning|evening|beginning|middle|end)\b/i;
+const OVERLAP_STOP_WORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "they", "them", "their", "then",
+  "when", "during", "before", "after", "scene", "moment", "because", "about", "into", "were",
+  "was", "are", "is", "have", "has", "had", "you", "your", "just", "really", "very",
+]);
+
+function hasRecognizableSceneReference(answer: string, wikiFields: WikiFields | null): boolean {
+  if (!wikiFields) return false;
+
+  const lower = answer.toLowerCase();
+  if (!SCENE_CUE_REGEX.test(lower) && !RELATIONAL_EVENT_REGEX.test(lower)) return false;
+
+  // If relational/event phrase is present, that alone is sufficient grounding.
+  if (RELATIONAL_EVENT_REGEX.test(lower)) return true;
+
+  const wikiText = `${wikiFields.extract} ${wikiFields.plot ?? ""} ${wikiFields.themes ?? ""}`.toLowerCase();
+  const tokens = lower
+    .split(/[^a-z0-9']+/)
+    .filter((t) => t.length >= 4 && !OVERLAP_STOP_WORDS.has(t));
+
+  if (tokens.length === 0) return false;
+
+  const overlap = tokens.filter((t) => wikiText.includes(t)).length;
+  return overlap >= 1 || SCENE_CUE_REGEX.test(lower);
+}
+
+function buildUserPrompt(
+  req: EvaluateRequest,
+  wikiFields: WikiFields | null,
+  hasSceneReferencePrecheck: boolean,
+  comparePrecheck: {
+    hasCompareClaim: boolean;
+    hasEvidenceCue: boolean;
+    hasConnectionCue: boolean;
+  } | null
+): string {
   const historyText =
     req.priorTurns.length > 0
       ? req.priorTurns.map((t) => `${t.role}: ${t.text}`).join("\n")
@@ -146,6 +191,16 @@ function buildUserPrompt(req: EvaluateRequest, wikiFields: WikiFields | null): s
     `- Focus: ${req.question.focus}`,
     `- Prompt: "${req.question.prompt}"`,
     `- Hint available: "${req.question.hint}"`,
+    `- Scene reference pre-check: ${hasSceneReferencePrecheck ? "true" : "false"}`,
+    hasSceneReferencePrecheck
+      ? "- Pre-check note: The student appears to reference a concrete moment/event. Treat scene-grounding as present unless contradicted by Wikipedia context."
+      : "- Pre-check note: No clear concrete moment/event was detected in the student's wording.",
+    comparePrecheck
+      ? `- Compare pre-check: claim=${comparePrecheck.hasCompareClaim ? "true" : "false"}, evidence=${comparePrecheck.hasEvidenceCue ? "true" : "false"}, connection=${comparePrecheck.hasConnectionCue ? "true" : "false"}`
+      : "- Compare pre-check: n/a",
+    comparePrecheck
+      ? "- Compare pre-check note: For Focus=Compare, accept evidence from either or both films in the prompt. If claim+evidence are present, treat as meaningful progress and ask only for the missing compare piece."
+      : "",
     "",
     `WIKIPEDIA CONTEXT FOR ${req.filmInFocus}:`,
     `Extract: ${wikiFields?.extract ?? "Not available"}`,
@@ -200,6 +255,33 @@ function heuristicFallback(req: EvaluateRequest): EvaluateResponse {
   return { ok: true, verdict: "off_base", feedback: "Write one full sentence about the film.", nextHint: "Try: 'In one scene, [character] does [something], which shows [idea].'" };
 }
 
+function hasPlausibleSceneReference(answer: string): boolean {
+  const lower = answer.toLowerCase();
+  if (!lower.trim()) return false;
+
+  // Lightweight cue detection for informal concrete moments.
+  const cueRegex = /\b(at the end|in the end|during|before|after|when|while|scene|moment|on stage|at dinner|after they argued|after he failed|after she failed|joined her|interaction)\b/i;
+  if (cueRegex.test(lower)) return true;
+
+  return false;
+}
+
+function hasCompareClaim(answer: string): boolean {
+  const lower = answer.toLowerCase();
+  const compareCueRegex = /\b(different|difference|similar|similarly|whereas|while|both|but|more|less|unlike|compared)\b/i;
+  return compareCueRegex.test(lower);
+}
+
+function hasCompareEvidenceCue(answer: string): boolean {
+  return hasPlausibleSceneReference(answer);
+}
+
+function hasCompareConnectionCue(answer: string): boolean {
+  const lower = answer.toLowerCase();
+  const connectionRegex = /\b(shows|reveals|means|because|so|therefore|which is why|this is why|support|responsib|mature|dynamic|relationship)\b/i;
+  return connectionRegex.test(lower);
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as EvaluateRequest;
@@ -233,7 +315,27 @@ export async function POST(request: Request) {
     console.log("Student answer:", studentAnswer);
     console.log("Attempts so far:", priorTurns.length);
 
-    const userPrompt = buildUserPrompt({ question, studentAnswer, priorTurns, films, filmInFocus }, wikiFields);
+    const hasSceneReferencePrecheck =
+      question.focus === "Interpretation" &&
+      (hasPlausibleSceneReference(studentAnswer) || hasRecognizableSceneReference(studentAnswer, wikiFields));
+
+    const comparePrecheck =
+      question.focus === "Compare"
+        ? {
+            hasCompareClaim: hasCompareClaim(studentAnswer),
+            hasEvidenceCue:
+              hasCompareEvidenceCue(studentAnswer) ||
+              hasRecognizableSceneReference(studentAnswer, wikiFields),
+            hasConnectionCue: hasCompareConnectionCue(studentAnswer),
+          }
+        : null;
+
+    const userPrompt = buildUserPrompt(
+      { question, studentAnswer, priorTurns, films, filmInFocus },
+      wikiFields,
+      hasSceneReferencePrecheck,
+      comparePrecheck
+    );
 
     try {
       const response = await fetch(OPENAI_URL, {
@@ -288,17 +390,41 @@ export async function POST(request: Request) {
         nextHint: string;
       };
 
+      const adjustedResult =
+        question.focus === "Interpretation" &&
+        result.verdict === "partial" &&
+        hasRecognizableSceneReference(studentAnswer, wikiFields)
+          ? {
+              ...result,
+              feedback:
+                "You already named a recognizable moment; now say what that moment suggests about the character or the film's central idea.",
+              nextHint:
+                "In one short clause, explain what that moment reveals.",
+            }
+          : question.focus === "Compare" &&
+              result.verdict === "partial" &&
+              hasCompareClaim(studentAnswer) &&
+              (hasCompareEvidenceCue(studentAnswer) || hasRecognizableSceneReference(studentAnswer, wikiFields))
+            ? {
+                ...result,
+                feedback:
+                  "You made a real comparison and grounded it in a moment; now add one clause explaining how that difference changes what each family relationship/support dynamic means.",
+                nextHint:
+                  "Finish with: this difference matters because ___.",
+              }
+          : result;
+
       console.log("=== EVALUATION RESULT ===");
-      console.log("Verdict:", result.verdict);
-      console.log("Feedback:", result.feedback);
-      if (result.nextHint) console.log("Next hint:", result.nextHint);
+      console.log("Verdict:", adjustedResult.verdict);
+      console.log("Feedback:", adjustedResult.feedback);
+      if (adjustedResult.nextHint) console.log("Next hint:", adjustedResult.nextHint);
       console.log("========================\n");
 
       const successResponse: EvaluateResponse = {
         ok: true,
-        verdict: result.verdict,
-        feedback: result.feedback,
-        ...(result.nextHint ? { nextHint: result.nextHint } : {}),
+        verdict: adjustedResult.verdict,
+        feedback: adjustedResult.feedback,
+        ...(adjustedResult.nextHint ? { nextHint: adjustedResult.nextHint } : {}),
       };
       return Response.json(successResponse, { status: 200 });
 

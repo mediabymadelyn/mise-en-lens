@@ -1,4 +1,5 @@
 import type { FilmInput, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
+import type { QuizQuestion } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -468,6 +469,39 @@ async function generateWithOpenAI<T>(
   return JSON.parse(outputText) as T;
 }
 
+function findMentionedFilmTitles(text: string, filmTitles: string[]): string[] {
+  const lower = text.toLowerCase();
+  return filmTitles.filter((title) => lower.includes(title.toLowerCase()));
+}
+
+function normalizeQuizHintCoherence(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuizPayload {
+  const filmTitles = films.map((f) => f.title);
+
+  const questions: QuizQuestion[] = quiz.questions.map((question) => {
+    if (question.questionType !== "multiple_choice") return question;
+
+    const promptMentions = findMentionedFilmTitles(question.prompt, filmTitles);
+    const hintMentions = findMentionedFilmTitles(question.hint, filmTitles);
+
+    // Target only obvious cross-film drift on single-film MC questions.
+    if (promptMentions.length !== 1) return question;
+    if (hintMentions.length <= 1) return question;
+
+    const promptFilm = promptMentions[0];
+    if (hintMentions.every((title) => title === promptFilm)) return question;
+
+    return {
+      ...question,
+      hint: `Think about a concrete moment in ${promptFilm} that best supports your choice.`,
+    };
+  });
+
+  return {
+    ...quiz,
+    questions,
+  };
+}
+
 export async function generateLessonWithOpenAI(
   films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
@@ -479,5 +513,6 @@ export async function generateQuizWithOpenAI(
   films: FilmInput[],
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorQuizPayload> {
-  return generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
+  const quiz = await generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
+  return normalizeQuizHintCoherence(quiz, films);
 }
