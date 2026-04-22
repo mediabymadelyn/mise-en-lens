@@ -479,10 +479,10 @@ export default function Home() {
 
               <div className="space-y-4">
                 <h2 className="font-serif text-3xl text-white sm:text-4xl">
-                  {lesson.lesson.headline}
+                  {cleanCardText(lesson.lesson.headline)}
                 </h2>
                 <p className="max-w-3xl text-base leading-8 text-[var(--text-soft)]">
-                  {lesson.lesson.overview}
+                  {cleanCardText(lesson.lesson.overview)}
                 </p>
               </div>
 
@@ -495,7 +495,7 @@ export default function Home() {
               <div className="flex flex-wrap gap-2">
                 {lesson.lesson.tasteProfile.map((item) => (
                   <div key={item} className="rounded-full border border-white/20 bg-white/8 px-3 py-1.5">
-                    <p className="text-xs leading-5 text-[var(--text-soft)]">{item}</p>
+                    <p className="text-xs leading-5 text-[var(--text-soft)]">{cleanCardText(item)}</p>
                   </div>
                 ))}
               </div>
@@ -506,10 +506,10 @@ export default function Home() {
                 </p>
                 <h3 className="mt-2 font-serif text-2xl text-white">{lesson.lesson.concept.name}</h3>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-soft)]">
-                  {lesson.lesson.concept.explanation}
+                  {cleanCardText(lesson.lesson.concept.explanation)}
                 </p>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">
-                  {lesson.lesson.concept.connection}
+                  {cleanCardText(lesson.lesson.concept.connection)}
                 </p>
               </div>
 

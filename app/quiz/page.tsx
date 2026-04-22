@@ -208,6 +208,10 @@ function evaluateShortAnswer(
   return "confused";
 }
 
+function cleanCardText(text: string): string {
+  return text.replace(/\*/g, "").trim();
+}
+
 export default function QuizPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -867,7 +871,7 @@ export default function QuizPage() {
                         {quizData.quiz.transferConcept.concept} &mdash; {quizData.quiz.transferConcept.filmA}
                       </p>
                       <p className="mt-2">
-                        {quizData.quiz.transferConcept.teachStatement}
+                        {cleanCardText(quizData.quiz.transferConcept.teachStatement)}
                       </p>
                     </div>
                   ) : null}
@@ -901,7 +905,7 @@ export default function QuizPage() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-3 text-xl leading-8 text-white">{activeQuestion.prompt}</p>
+                    <p className="mt-3 text-xl leading-8 text-white">{cleanCardText(activeQuestion.prompt)}</p>
                   </div>
 
                   {/* Scaffold prompt — shown when in scaffold mode (no fallback MC yet) */}
@@ -913,7 +917,7 @@ export default function QuizPage() {
                       <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
                         Step {scaffoldStepIndex} of {activeQuestion.scaffoldSteps.length}
                       </p>
-                      <p className="mt-2">{currentScaffoldStep.prompt}</p>
+                      <p className="mt-2">{cleanCardText(currentScaffoldStep.prompt)}</p>
                     </div>
                   ) : null}
 
@@ -925,8 +929,8 @@ export default function QuizPage() {
                       </p>
                       <p className="mt-2">
                         {activeQuestion.questionType === "short_answer"
-                          ? activeQuestion.hint
-                          : activeQuestion.correctAnswer}
+                          ? cleanCardText(activeQuestion.hint)
+                          : cleanCardText(activeQuestion.correctAnswer)}
                       </p>
                     </div>
                   ) : null}
@@ -949,7 +953,7 @@ export default function QuizPage() {
                                   : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
                           }`}
                         >
-                          {option}
+                          {cleanCardText(option)}
                         </button>
                       ))}
                       {questionStatus === "confused" ? (
@@ -973,7 +977,7 @@ export default function QuizPage() {
                                 : "ml-auto border border-[var(--accent-green)]/30 bg-[var(--accent-green)]/12 text-white"
                             }`}
                           >
-                            {turn.text}
+                            {cleanCardText(turn.text)}
                           </div>
                         ))}
                       </div>
@@ -985,7 +989,7 @@ export default function QuizPage() {
                             Pick one
                           </p>
                           <p className="text-sm leading-6 text-white">
-                            {activeQuestion.fallbackMultipleChoice.prompt}
+                            {cleanCardText(activeQuestion.fallbackMultipleChoice.prompt)}
                           </p>
                           <div className="grid gap-2">
                             {activeQuestion.fallbackMultipleChoice.options.map((opt) => (
@@ -999,7 +1003,7 @@ export default function QuizPage() {
                                     : "border-white/10 bg-white/5 text-[var(--text-soft)] hover:bg-white/8"
                                 }`}
                               >
-                                {opt}
+                                {cleanCardText(opt)}
                               </button>
                             ))}
                           </div>
@@ -1134,7 +1138,7 @@ export default function QuizPage() {
                         ) : null}
                       </div>
                       <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
-                        {hintText}
+                        {cleanCardText(hintText)}
                       </p>
                     </div>
                   ) : null}
@@ -1151,12 +1155,12 @@ export default function QuizPage() {
                       }`}
                     >
                       {questionStatus === "correct"
-                        ? activeQuestion.correctFeedback
+                        ? cleanCardText(activeQuestion.correctFeedback)
                         : questionStatus === "exhausted"
                           ? "Let's keep going."
                           : attempts === 1
                             ? "Not quite — try again."
-                            : activeQuestion.hint}
+                            : cleanCardText(activeQuestion.hint)}
                     </div>
                   ) : null}
 
