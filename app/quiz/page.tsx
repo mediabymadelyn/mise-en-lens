@@ -498,8 +498,9 @@ export default function QuizPage() {
       return;
     }
 
-    // off_base: first time = redirect with simpler version (no attempt); repeat = action row
     if (verdict.verdict === "off_base") {
+      // off_base counts as a real attempt so the Move On button unlocks after 2 tries
+      setAttempts(attempts + 1);
       const newOffTopic = consecutiveOffTopic + 1;
       setConsecutiveOffTopic(newOffTopic);
       if (newOffTopic >= 2) {
@@ -518,12 +519,13 @@ export default function QuizPage() {
           setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
         }
       }
-      return; // No attempt counted
+      return;
     }
 
-    // Reset off-topic counter on non-off_base
+    // Reset off-topic counter on correct/partial
     setConsecutiveOffTopic(0);
 
+    // correct and partial both count as a real attempt
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
 
@@ -573,6 +575,9 @@ export default function QuizPage() {
     if (!activeQuestion || activeQuestion.questionType !== "short_answer") return;
     const mc = activeQuestion.fallbackMultipleChoice;
     if (!mc || !fallbackMCSelected) return;
+
+    // Fallback MC is a genuine attempt — count it once regardless of whether the answer is correct
+    setAttempts((a) => a + 1);
 
     if (fallbackMCSelected === mc.correctAnswer) {
       setShortAnswerThread((cur) => [
