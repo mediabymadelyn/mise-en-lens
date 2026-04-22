@@ -845,8 +845,15 @@ export default function QuizPage() {
                       </p>
                       <h2 className="mt-2 font-serif text-3xl text-white">Question {questionIndex + 1}</h2>
                     </div>
-                    <div className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-[var(--text-soft)]">
-                      Question {questionIndex + 1} of {quizData.quiz.questions.length} &middot; {SECTION_BY_INDEX[questionIndex] ?? ""}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {quizData.generatedBy === "fallback" ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] uppercase text-[var(--text-muted)]">
+                          Offline mode
+                        </span>
+                      ) : null}
+                      <div className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-[var(--text-soft)]">
+                        Question {questionIndex + 1} of {quizData.quiz.questions.length} &middot; {SECTION_BY_INDEX[questionIndex] ?? ""}
+                      </div>
                     </div>
                   </div>
 
