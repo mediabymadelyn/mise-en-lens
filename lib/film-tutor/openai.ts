@@ -320,6 +320,7 @@ function buildQuizPrompt(
     "=== OTHER RULES ===",
     "- Do NOT include a reflection question about what technique the student will look for next time.",
     "- Do NOT ask about release years.",
+    "- Never use em dashes in the queston prompts or text.",
     "- acceptableAnswers and acceptableKeywords for short_answer questions must come from the wiki reference context (character names, themes mentioned, plot events, techniques named).",
     "- maxWords for every short_answer must be between 12 and 20. Never below 12.",
     "",
