@@ -73,11 +73,15 @@ export type TutorLessonPayload = {
     summary: string;
     artisticElements: string;
     societalContext: string;
+    genreTag?: string;
   }>;
   recommendation: {
     title: string;
     whyYouMightLikeIt: string;
     educationalRedirect: string;
+    posterUrl?: string | null;
+    filmUrl?: string | null;
+    genreTag?: string;
   };
 };
 

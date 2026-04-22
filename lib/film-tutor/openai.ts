@@ -53,8 +53,10 @@ const lessonSchema = {
           title: { type: "string" },
           whyYouMightLikeIt: { type: "string" },
           educationalRedirect: { type: "string" },
+          posterUrl: { type: ["string", "null"] },
+          filmUrl: { type: ["string", "null"] },
         },
-        required: ["title", "whyYouMightLikeIt", "educationalRedirect"],
+        required: ["title", "whyYouMightLikeIt", "educationalRedirect", "posterUrl", "filmUrl"],
       },
     },
     required: [

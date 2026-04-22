@@ -617,6 +617,8 @@ export function buildFallbackLesson(
       title: archetype.recommendation.title,
       whyYouMightLikeIt: archetype.recommendation.why,
       educationalRedirect: archetype.recommendation.redirect,
+      posterUrl: undefined,
+      filmUrl: undefined,
     },
   };
 }

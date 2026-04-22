@@ -57,10 +57,42 @@ const CONCEPT_DEFINITIONS: Record<string, string> = {
     "A film technique is a deliberate choice the director makes — how close the camera is (framing), what you hear (sound design, silence), what colors appear, how fast scenes cut. Pick one you can actually point to on screen.",
   moment:
     "A moment just means one specific scene or shot that stood out — something that happened on screen, not a summary of the whole film. You don't need a technical term to name it.",
+  scene:
+    "A scene is a specific sequence of moments on screen where characters interact, something happens, or a visual moment stands out. Name it by who's in it or what happens: 'when Juno talks to her dad' or 'the opening shot in the car'.",
   mood:
     "Mood is the overall feeling the film creates — tense, warm, melancholic, unsettling. Think about how you felt watching it, not what the plot was.",
   tone:
     "Tone is how the film 'speaks' — serious, playful, cold, urgent. It's the emotional atmosphere the director builds through visual and sound choices.",
+  symbol:
+    "A symbol is an object, color, or image that represents a bigger idea. Example: a mirror might symbolize self-reflection, or the color red might symbolize danger or passion. Connect it: 'The [symbol] in [scene] represents [idea]'.",
+  character:
+    "A character is a person (or being) in the film. When analyzing a character, focus on their decisions, relationships, and how they change. Example: 'Juno's choice reveals her values around family and responsibility'.",
+  relationship:
+    "A relationship is the connection between two characters — how they interact, what they mean to each other, how it changes. Name the two people and describe one moment that shows the dynamic.",
+  conflict:
+    "Conflict is what the character wants versus what stands in their way — internal struggle (doubts, fears) or external struggle (other characters, circumstances). Name one moment where the conflict is visible.",
+  comparison:
+    "Comparison means looking at how two films (or characters, or moments) are similar or different. Try: 'In [film A], [idea], but in [film B], [different idea].' Name a moment from each.",
+  cinematography:
+    "Cinematography is how the camera captures the image — framing, angles, movement, focus. It includes lighting (brightness, shadows), color, and composition (what's in the shot, where it's positioned).",
+  visual:
+    "Visual refers to anything you see on screen — colors, framing, lighting, movement, editing. When analyzing visual style, name one specific choice: 'The close-up on her face' or 'the dark blue lighting'.",
+  pacing:
+    "Pacing is how fast or slow the film moves — are scenes long and quiet, or short and frantic? Does the editing cut quickly or linger? It shapes how you feel while watching.",
+  editing:
+    "Editing is how shots are put together — quick cuts make intensity, long takes create calm or dread. It controls rhythm and how much time you spend with a moment or character.",
+  framing:
+    "Framing is what the camera chooses to show — is the character centered or shoved to the side? Is the shot wide (showing space) or tight (focusing on one thing)? It guides your attention.",
+  symbolism:
+    "Symbolism is when objects, colors, or actions represent deeper meanings. A locked door might mean isolation, rain might mean sadness or cleansing. Connect the symbol to the theme.",
+  protagonist:
+    "The protagonist is the main character whose story you're following and whose perspective matters most. Name them and describe one decision they make that drives the story forward.",
+  antagonist:
+    "The antagonist is the main force working against the protagonist — another character, a circumstance, or even the protagonist's own doubts. It doesn't have to be a villain.",
+  plot:
+    "Plot is what happens in the story — the events and decisions that move things forward. Don't just summarize; connect plot events to the theme: 'When [plot event], it shows that [idea]'.",
+  dramatic:
+    "Dramatic means emotionally intense or full of conflict. A dramatic moment is one where stakes feel high, emotions run strong, or a character makes a crucial decision.",
 };
 
 function detectConceptQuestion(answer: string): string | null {
@@ -81,6 +113,16 @@ function detectConceptQuestion(answer: string): string | null {
     return "You can ask 'what is a theme', 'what is a technique', or 'what is a moment' and I'll explain it before you answer.";
   }
   return null;
+}
+
+function isAffirmativeFollowup(answer: string): boolean {
+  const n = answer.trim().toLowerCase();
+  return ["yes", "yeah", "yep", "ok", "okay", "sure", "please"].includes(n);
+}
+
+function isNegativeFollowup(answer: string): boolean {
+  const n = answer.trim().toLowerCase();
+  return ["no", "nope", "nah", "not now"].includes(n);
 }
 
 const FILM_VOCAB = new Set([
@@ -176,6 +218,7 @@ export default function QuizPage() {
   // Short-answer state
   const [shortAnswer, setShortAnswer] = useState("");
   const [shortAnswerThread, setShortAnswerThread] = useState<TutorTurn[]>([]);
+  const [awaitingConceptFollowup, setAwaitingConceptFollowup] = useState(false);
 
   // Per-question state machine
   const [questionStatus, setQuestionStatus] = useState<QuestionStatus>("idle");
@@ -301,6 +344,7 @@ export default function QuizPage() {
     setConsecutiveOffTopic(0);
     setDimmedOptions(new Set());
     setHintCycleIndex(0);
+    setAwaitingConceptFollowup(false);
 
     if (activeQuestion?.questionType === "short_answer") {
       setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
@@ -349,6 +393,47 @@ export default function QuizPage() {
       return;
     }
 
+    // Handle concept clarification locally so follow-ups like "yes" are not misread as answers.
+    const conceptDefinition = detectConceptQuestion(trimmed);
+    if (conceptDefinition) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        {
+          role: "tutor",
+          text: `${conceptDefinition} If you want, reply 'yes' and I'll give a quick example tied to this question.`,
+        },
+      ]);
+      setShortAnswer("");
+      setAwaitingConceptFollowup(true);
+      return;
+    }
+
+    if (awaitingConceptFollowup && isAffirmativeFollowup(trimmed)) {
+      const conceptLead = activeQuestion.focus.toLowerCase().includes("compare")
+        ? "Try: 'In [film A], [moment] shows __, while in [film B], [moment] shows __. This suggests __.'"
+        : "Try: 'When [specific moment], it suggests [idea about the theme/character].'";
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        { role: "tutor", text: `${conceptLead} Now try your own one-sentence version.` },
+      ]);
+      setShortAnswer("");
+      setAwaitingConceptFollowup(false);
+      return;
+    }
+
+    if (awaitingConceptFollowup && isNegativeFollowup(trimmed)) {
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        { role: "tutor", text: "Great — go ahead and answer the original question in one short sentence." },
+      ]);
+      setShortAnswer("");
+      setAwaitingConceptFollowup(false);
+      return;
+    }
+
     // Intercept vague/idk before LLM — treat as uncertainty, not failure
     if (isVagueAnswer(trimmed)) {
       setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
@@ -368,6 +453,7 @@ export default function QuizPage() {
 
     // Real answer — reset consecutive uncertain
     setConsecutiveUncertain(0);
+    setAwaitingConceptFollowup(false);
 
     setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
     setShortAnswer("");
@@ -406,6 +492,9 @@ export default function QuizPage() {
     // concept_question and memory_gap: no attempt counted
     if (verdict.verdict === "concept_question" || verdict.verdict === "memory_gap") {
       setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
+      if (verdict.verdict === "concept_question") {
+        setAwaitingConceptFollowup(true);
+      }
       return;
     }
 

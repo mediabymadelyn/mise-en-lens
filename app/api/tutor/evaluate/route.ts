@@ -390,10 +390,33 @@ export async function POST(request: Request) {
         nextHint: string;
       };
 
+// Helper: detect if answer has interpretation/reasoning beyond just naming a scene
+      const hasInterpretationSignal = (answer: string): boolean => {
+        const lower = answer.toLowerCase();
+        return (
+          lower.includes("shows") ||
+          lower.includes("reveals") ||
+          lower.includes("suggests") ||
+          lower.includes("means") ||
+          lower.includes("because") ||
+          lower.includes("demonstrates") ||
+          lower.includes("indicates") ||
+          lower.includes("represents") ||
+          lower.includes("it's about") ||
+          lower.includes("it is") ||
+          lower.includes("think") ||
+          lower.includes("reflects") ||
+          lower.includes("expresses") ||
+          lower.includes("portrays") ||
+          /[,;:]\s+\w+.*?[a-z](?:ed|s|ing)/.test(answer) // Multi-clause structure
+        );
+      };
+
       const adjustedResult =
         question.focus === "Interpretation" &&
         result.verdict === "partial" &&
-        hasRecognizableSceneReference(studentAnswer, wikiFields)
+        hasRecognizableSceneReference(studentAnswer, wikiFields) &&
+        !hasInterpretationSignal(studentAnswer)
           ? {
               ...result,
               feedback:

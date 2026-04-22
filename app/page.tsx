@@ -31,6 +31,10 @@ type WikiLookupResult =
 
 type ConfirmedFilm = WikiLookupResult & { confirmed: boolean };
 
+function cleanCardText(text: string): string {
+  return text.replace(/\*/g, "").trim();
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -385,36 +389,47 @@ export default function Home() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    {top4.films.map((film, index) => (
-                      <div
-                        key={`${film.title}-${index}`}
-                        className="overflow-hidden rounded-[1.15rem] border border-white/10 bg-[var(--panel)]"
-                      >
-                        <div className="aspect-[2/3] bg-black/20">
-                          {film.poster_url ? (
-                            <Image
-                              src={film.poster_url}
-                              alt={`Poster for ${film.title}`}
-                              width={400}
-                              height={600}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--text-muted)]">
-                              Poster unavailable
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-[var(--accent-blue)]">
-                            Favorite {index + 1}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold leading-5 text-white">
-                            {film.title}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                    {top4.films.map((film, index) => {
+                      const filmNote = lesson?.lesson.filmNotes.find((note) => note.title === film.title);
+                      return (
+                        <a
+                          key={`${film.title}-${index}`}
+                          href={film.film_url || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="overflow-hidden rounded-[1.15rem] border border-white/10 bg-[var(--panel)] transition hover:border-white/20"
+                        >
+                          <div className="aspect-[2/3] bg-black/20">
+                            {film.poster_url ? (
+                              <Image
+                                src={film.poster_url}
+                                alt={`Poster for ${film.title}`}
+                                width={400}
+                                height={600}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--text-muted)]">
+                                Poster unavailable
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3">
+                            <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-[var(--accent-blue)]">
+                              Favorite {index + 1}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold leading-5 text-white">
+                              {film.title}
+                            </p>
+                            {lesson ? (
+                              <span className="mt-2 inline-flex rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-soft)]">
+                                {filmNote?.genreTag ?? "Film"}
+                              </span>
+                            ) : null}
+                          </div>
+                        </a>
+                      );
+                    })}
                   </div>
 
                   {lesson ? (
@@ -477,10 +492,10 @@ export default function Home() {
                 </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="flex flex-wrap gap-2">
                 {lesson.lesson.tasteProfile.map((item) => (
-                  <div key={item} className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm leading-6 text-[var(--text-soft)]">{item}</p>
+                  <div key={item} className="rounded-full border border-white/20 bg-white/8 px-3 py-1.5">
+                    <p className="text-xs leading-5 text-[var(--text-soft)]">{item}</p>
                   </div>
                 ))}
               </div>
@@ -502,14 +517,17 @@ export default function Home() {
                 {lesson.lesson.filmNotes.map((note) => (
                   <article key={note.title} className="rounded-[1.4rem] border border-white/10 bg-white/5 p-5">
                     <h3 className="font-serif text-2xl text-white">{note.title}</h3>
-                    <p className="mt-3 text-sm leading-7 text-[var(--text-soft)]">{note.summary}</p>
+                    <span className="mt-2 inline-flex rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-soft)]">
+                      {note.genreTag ?? "Film"}
+                    </span>
+                    <p className="mt-3 text-sm leading-7 text-[var(--text-soft)]">{cleanCardText(note.summary)}</p>
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <div className="rounded-[1rem] bg-black/15 p-4">
                         <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--accent-orange)]">
                           Artistic elements
                         </p>
                         <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
-                          {note.artisticElements}
+                          {cleanCardText(note.artisticElements)}
                         </p>
                       </div>
                       <div className="rounded-[1rem] bg-black/15 p-4">
@@ -517,7 +535,7 @@ export default function Home() {
                           Societal context
                         </p>
                         <p className="mt-2 text-sm leading-6 text-[var(--text-soft)]">
-                          {note.societalContext}
+                          {cleanCardText(note.societalContext)}
                         </p>
                       </div>
                     </div>
@@ -536,20 +554,37 @@ export default function Home() {
             </div>
 
             <div className="space-y-6 rounded-[2rem] border border-white/10 bg-[linear-gradient(160deg,rgba(36,42,50,0.98),rgba(28,34,42,0.96))] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.22)] sm:p-8">
-              <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-5">
+              <a
+                href={lesson.lesson.recommendation.filmUrl || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-[1.5rem] border border-white/10 bg-white/5 p-5 transition hover:border-white/20"
+              >
                 <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--accent-orange)]">
                   Recommendation
                 </p>
                 <h2 className="mt-2 font-serif text-3xl text-white">
                   {lesson.lesson.recommendation.title}
                 </h2>
+                <span className="mt-2 inline-flex rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-soft)]">
+                  {lesson.lesson.recommendation.genreTag ?? "Film"}
+                </span>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-soft)]">
-                  {lesson.lesson.recommendation.whyYouMightLikeIt}
+                  {cleanCardText(lesson.lesson.recommendation.whyYouMightLikeIt)}
                 </p>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">
-                  {lesson.lesson.recommendation.educationalRedirect}
+                  {cleanCardText(lesson.lesson.recommendation.educationalRedirect)}
                 </p>
-              </div>
+                {lesson.lesson.recommendation.posterUrl ? (
+                  <div className="mt-4 rounded-[1rem] border border-white/10 overflow-hidden">
+                    <img
+                      src={lesson.lesson.recommendation.posterUrl}
+                      alt={`Poster for ${lesson.lesson.recommendation.title}`}
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                ) : null}
+              </a>
 
               <div className="rounded-[1.5rem] border border-white/10 bg-[#20252d] p-5">
                 <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--accent-green)]">
