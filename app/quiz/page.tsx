@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { EvaluateRequest, EvaluateResponse, EvaluateVerdict } from "@/lib/film-tutor/evaluation-types";
 import type {
@@ -34,6 +34,8 @@ type Top4Response =
 
 // Per-question state machine statuses
 type QuestionStatus = "idle" | "correct" | "partial" | "confused" | "revealed" | "exhausted";
+
+const QUIZ_STORAGE_VERSION = 1;
 
 const SECTION_BY_INDEX = [
   "Warm-Up", "Warm-Up",
@@ -239,6 +241,11 @@ export default function QuizPage() {
   // Hint cycling
   const [hintCycleIndex, setHintCycleIndex] = useState(0);
 
+  // Quiz persistence
+  const [quizStorageKey, setQuizStorageKey] = useState<string | null>(null);
+  // Prevents the activeQuestion reset effect from wiping shortAnswerThread on storage restore
+  const skipThreadResetRef = useRef(false);
+
   useEffect(() => {
     async function loadQuiz() {
       const params = new URLSearchParams(window.location.search);
@@ -249,19 +256,76 @@ export default function QuizPage() {
       setError(null);
 
       try {
+        // Compute key before any network work so we can restore early
+        const sourceId = source === "manual" ? "manual" : usernameParam;
+        const key = sourceId ? `mel_quiz_${sourceId}` : null;
+        setQuizStorageKey(key);
+
+        if (key) {
+          const storedRaw = sessionStorage.getItem(key);
+          if (storedRaw) {
+            let restored = false;
+            try {
+              const parsed = JSON.parse(storedRaw) as {
+                version: number;
+                quizData: TutorQuizResponse;
+                questionIndex: number;
+                shortAnswerThread: TutorTurn[];
+              };
+              if (parsed.version === QUIZ_STORAGE_VERSION && parsed.quizData?.quiz) {
+                // Signal the activeQuestion effect to skip its thread reset this once
+                skipThreadResetRef.current = true;
+                setQuizData(parsed.quizData);
+                setQuestionIndex(parsed.questionIndex ?? 0);
+                setShortAnswerThread(parsed.shortAnswerThread ?? []);
+                restored = true;
+              }
+            } catch {
+              // Malformed JSON or wrong schema — discard silently
+            }
+            if (!restored) sessionStorage.removeItem(key);
+            if (restored) {
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+
         let films: FilmInput[];
         let quizUsername: string;
         let quizSourceUrl: string;
 
         if (source === "manual") {
-          // Manual path: read confirmed films from sessionStorage
           const stored = sessionStorage.getItem("manualFilms");
+          const sessionExpiredError =
+            "Your session has expired. Please go back and re-enter your films to start the quiz.";
+
           if (!stored) {
-            setError("No films found. Please go back and enter your films.");
+            setError(sessionExpiredError);
             setIsLoading(false);
             return;
           }
-          films = JSON.parse(stored) as FilmInput[];
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(stored);
+          } catch {
+            setError(sessionExpiredError);
+            setIsLoading(false);
+            return;
+          }
+
+          if (
+            !Array.isArray(parsed) ||
+            parsed.length === 0 ||
+            !(parsed as FilmInput[]).every((f) => typeof f.title === "string" && f.title.trim())
+          ) {
+            setError(sessionExpiredError);
+            setIsLoading(false);
+            return;
+          }
+
+          films = parsed as FilmInput[];
           quizUsername = "Manual entry";
           quizSourceUrl = "manual";
         } else {
@@ -331,6 +395,11 @@ export default function QuizPage() {
 
   // Reset all per-question state when the active question changes
   useEffect(() => {
+    // Skip the reset once after a storage restore — the persisted thread is already in state
+    if (skipThreadResetRef.current) {
+      skipThreadResetRef.current = false;
+      return;
+    }
     setSelectedOption("");
     setShortAnswer("");
     setQuestionStatus("idle");
@@ -352,6 +421,24 @@ export default function QuizPage() {
       setShortAnswerThread([]);
     }
   }, [activeQuestion]);
+
+  // Persist quiz state to sessionStorage so a refresh restores the session
+  useEffect(() => {
+    if (!quizData || !quizStorageKey) return;
+    try {
+      sessionStorage.setItem(
+        quizStorageKey,
+        JSON.stringify({
+          version: QUIZ_STORAGE_VERSION,
+          quizData,
+          questionIndex,
+          shortAnswerThread,
+        })
+      );
+    } catch {
+      // Quota exceeded or private browsing — skip silently
+    }
+  }, [quizData, questionIndex, shortAnswerThread, quizStorageKey]);
 
   async function handleSubmitAnswer() {
     if (!activeQuestion) return;
@@ -607,6 +694,11 @@ export default function QuizPage() {
     setQuestionIndex((i) => i + 1);
   }
 
+  function handleStartOver() {
+    if (quizStorageKey) sessionStorage.removeItem(quizStorageKey);
+    window.location.reload();
+  }
+
   const canAdvance =
     questionStatus === "correct" || questionStatus === "revealed" || questionStatus === "exhausted";
 
@@ -702,19 +794,23 @@ export default function QuizPage() {
                     ))}
                   </div>
 
-                  <Link
-                    href={`/?prefill=${encodeURIComponent(quizData.username)}`}
-                    className="inline-flex items-center rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
-                  >
-                    Back to lesson
-                  </Link>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/?prefill=${encodeURIComponent(quizData.username)}`}
+                      className="inline-flex items-center rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
+                    >
+                      Back to lesson
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleStartOver}
+                      className="rounded-[1rem] border border-white/8 bg-white/4 px-4 py-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-white/8"
+                    >
+                      Start over
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-[1.2rem] border border-white/10 bg-white/5 p-4 text-sm leading-6 text-[var(--text-soft)]">
-                  The quiz loads from the username in the URL so the lesson and quiz can stay on
-                  separate pages without changing the overall app structure.
-                </div>
-              )}
+              ) : null}
             </aside>
 
             <div className="space-y-6 rounded-[1.8rem] border border-white/10 bg-[linear-gradient(160deg,rgba(36,42,50,0.98),rgba(28,34,42,0.96))] p-6 sm:p-8">
