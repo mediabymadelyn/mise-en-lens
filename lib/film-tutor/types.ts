@@ -18,6 +18,7 @@ type QuizQuestionBase = {
   correctFeedback: string;
   partialFeedback: string;
   incorrectFeedback: string;
+  filmInFocus: string;
 };
 
 export type MultipleChoiceQuestion = QuizQuestionBase & {
@@ -44,8 +45,8 @@ export type ShortAnswerQuestion = QuizQuestionBase & {
     options: string[];
     correctAnswer: string;
     explanation: string;
-  };
-  revealAnswerAfterFallback?: boolean;
+  } | null;
+  revealAnswerAfterFallback?: boolean | null;
 };
 
 export type QuizQuestion = MultipleChoiceQuestion | ShortAnswerQuestion;

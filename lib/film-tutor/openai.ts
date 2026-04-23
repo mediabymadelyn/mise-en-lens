@@ -1,6 +1,7 @@
 import type { FilmInput, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 import type { QuizQuestion } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
+import { filterAcceptableKeywords } from "@/lib/film-tutor/keyword-filter";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_FILM_TUTOR_MODEL || "gpt-4o-mini";
@@ -129,6 +130,7 @@ const quizSchema = {
                 correctFeedback: { type: "string" },
                 partialFeedback: { type: "string" },
                 incorrectFeedback: { type: "string" },
+                filmInFocus: { type: "string" },
               },
               required: [
                 "id",
@@ -142,44 +144,45 @@ const quizSchema = {
                 "correctFeedback",
                 "partialFeedback",
                 "incorrectFeedback",
+                "filmInFocus",
               ],
             },
             {
-              anyOf: [
-                {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    id: { type: "string" },
-                    questionType: { type: "string", enum: ["short_answer"] },
-                    prompt: { type: "string" },
-                    focus: { type: "string" },
-                    hint: { type: "string" },
-                    explanation: { type: "string" },
-                    maxWords: { type: "number", minimum: 12, maximum: 20 },
-                    placeholder: { type: "string" },
-                    acceptableAnswers: {
-                      type: "array",
-                      items: { type: "string" },
-                      minItems: 1,
-                      maxItems: 6,
-                    },
-                    acceptableKeywords: {
-                      type: "array",
-                      items: { type: "string" },
-                      minItems: 2,
-                      maxItems: 10,
-                    },
-                    correctFeedback: { type: "string" },
-                    partialFeedback: { type: "string" },
-                    incorrectFeedback: { type: "string" },
-                    scaffoldSteps: {
-                      type: "array",
-                      minItems: 2,
-                      maxItems: 3,
-                      items: scaffoldStepSchema,
-                    },
-                    fallbackMultipleChoice: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                id: { type: "string" },
+                questionType: { type: "string", enum: ["short_answer"] },
+                prompt: { type: "string" },
+                focus: { type: "string" },
+                hint: { type: "string" },
+                explanation: { type: "string" },
+                maxWords: { type: "number", minimum: 12, maximum: 20 },
+                placeholder: { type: "string" },
+                acceptableAnswers: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  maxItems: 6,
+                },
+                acceptableKeywords: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 2,
+                  maxItems: 10,
+                },
+                correctFeedback: { type: "string" },
+                partialFeedback: { type: "string" },
+                incorrectFeedback: { type: "string" },
+                scaffoldSteps: {
+                  type: "array",
+                  minItems: 2,
+                  maxItems: 3,
+                  items: scaffoldStepSchema,
+                },
+                fallbackMultipleChoice: {
+                  anyOf: [
+                    {
                       type: "object",
                       additionalProperties: false,
                       properties: {
@@ -195,78 +198,32 @@ const quizSchema = {
                       },
                       required: ["prompt", "options", "correctAnswer", "explanation"],
                     },
-                    revealAnswerAfterFallback: { type: "boolean" },
-                  },
-                  required: [
-                    "id",
-                    "questionType",
-                    "prompt",
-                    "focus",
-                    "hint",
-                    "explanation",
-                    "maxWords",
-                    "placeholder",
-                    "acceptableAnswers",
-                    "acceptableKeywords",
-                    "correctFeedback",
-                    "partialFeedback",
-                    "incorrectFeedback",
-                    "scaffoldSteps",
-                    "fallbackMultipleChoice",
-                    "revealAnswerAfterFallback",
+                    { type: "null" },
                   ],
                 },
-                {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    id: { type: "string" },
-                    questionType: { type: "string", enum: ["short_answer"] },
-                    prompt: { type: "string" },
-                    focus: { type: "string" },
-                    hint: { type: "string" },
-                    explanation: { type: "string" },
-                    maxWords: { type: "number", minimum: 12, maximum: 20 },
-                    placeholder: { type: "string" },
-                    acceptableAnswers: {
-                      type: "array",
-                      items: { type: "string" },
-                      minItems: 1,
-                      maxItems: 6,
-                    },
-                    acceptableKeywords: {
-                      type: "array",
-                      items: { type: "string" },
-                      minItems: 2,
-                      maxItems: 10,
-                    },
-                    correctFeedback: { type: "string" },
-                    partialFeedback: { type: "string" },
-                    incorrectFeedback: { type: "string" },
-                    scaffoldSteps: {
-                      type: "array",
-                      minItems: 2,
-                      maxItems: 3,
-                      items: scaffoldStepSchema,
-                    },
-                  },
-                  required: [
-                    "id",
-                    "questionType",
-                    "prompt",
-                    "focus",
-                    "hint",
-                    "explanation",
-                    "maxWords",
-                    "placeholder",
-                    "acceptableAnswers",
-                    "acceptableKeywords",
-                    "correctFeedback",
-                    "partialFeedback",
-                    "incorrectFeedback",
-                    "scaffoldSteps",
-                  ],
+                revealAnswerAfterFallback: {
+                  anyOf: [{ type: "boolean" }, { type: "null" }],
                 },
+                filmInFocus: { type: "string" },
+              },
+              required: [
+                "id",
+                "questionType",
+                "prompt",
+                "focus",
+                "hint",
+                "explanation",
+                "maxWords",
+                "placeholder",
+                "acceptableAnswers",
+                "acceptableKeywords",
+                "correctFeedback",
+                "partialFeedback",
+                "incorrectFeedback",
+                "scaffoldSteps",
+                "fallbackMultipleChoice",
+                "revealAnswerAfterFallback",
+                "filmInFocus",
               ],
             },
           ],
@@ -364,7 +321,7 @@ function buildQuizPrompt(
     "- Example stems: 'Which moment affected you the most, and how did the film create that impact?', 'Has your interpretation changed during this quiz? Why?'",
     "- maxWords: 25.",
     "- focus: 'Reflection'",
-    "- This question has no correct answer — do not set revealAnswerAfterFallback. Omit fallbackMultipleChoice.",
+    "- This question has no correct answer — set fallbackMultipleChoice and revealAnswerAfterFallback to null.",
     "",
     "=== TRANSFER CONCEPT ===",
     "For transferConcept: pick a concept that genuinely appears in BOTH Film A and Film B according to the wiki context.",
@@ -407,6 +364,7 @@ function buildQuizPrompt(
     "- acceptableAnswers and acceptableKeywords must come from the wiki reference context.",
     "- maxWords for every short_answer must be between 12 and 25. Never below 12.",
     "- Q5 and Q6 focus must be 'Compare'. Q9 focus must be 'Reflection'.",
+    "- For each question, set filmInFocus to the exact film title that the question primarily focuses on. For compare questions, set it to the first film mentioned in the prompt. For Q9 Reflection, set it to the first film in the Top 4 list.",
     "",
     "Top 4:",
     lines,
@@ -423,24 +381,36 @@ async function generateWithOpenAI<T>(
     throw new Error("Missing OPENAI_API_KEY.");
   }
 
-  const response = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: DEFAULT_MODEL,
-      store: false,
-      input,
-      text: {
-        format: {
-          type: "json_schema",
-          ...schema,
-        },
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+
+  let response: Response;
+  try {
+    response = await fetch(OPENAI_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
-    }),
-  });
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        store: false,
+        input,
+        text: {
+          format: {
+            type: "json_schema",
+            ...schema,
+          },
+        },
+      }),
+    });
+  } catch (err) {
+    const isTimeout = err instanceof Error && err.name === "AbortError";
+    throw new Error(isTimeout ? "OpenAI request timed out after 60s" : `OpenAI fetch failed: ${err}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -468,12 +438,29 @@ async function generateWithOpenAI<T>(
     throw new Error("OpenAI response did not include parsable text output.");
   }
 
-  return JSON.parse(outputText) as T;
+  const parsed: unknown = JSON.parse(outputText);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`OpenAI returned unexpected JSON shape: ${Array.isArray(parsed) ? "array" : typeof parsed}`);
+  }
+  return parsed as T;
 }
 
 function findMentionedFilmTitles(text: string, filmTitles: string[]): string[] {
   const lower = text.toLowerCase();
   return filmTitles.filter((title) => lower.includes(title.toLowerCase()));
+}
+
+function filterQuizKeywords(quiz: TutorQuizPayload): TutorQuizPayload {
+  return {
+    ...quiz,
+    questions: quiz.questions.map((q) => {
+      if (q.questionType !== "short_answer") return q;
+      return {
+        ...q,
+        acceptableKeywords: filterAcceptableKeywords(q.acceptableKeywords),
+      };
+    }),
+  };
 }
 
 function normalizeQuizHintCoherence(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuizPayload {
@@ -516,5 +503,5 @@ export async function generateQuizWithOpenAI(
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorQuizPayload> {
   const quiz = await generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
-  return normalizeQuizHintCoherence(quiz, films);
+  return filterQuizKeywords(normalizeQuizHintCoherence(quiz, films));
 }

@@ -1,5 +1,6 @@
 import type { EvaluateRequest, EvaluateResponse, EvaluateVerdict } from "@/lib/film-tutor/evaluation-types";
 import { fetchWikiContextForFilms } from "@/lib/wikipedia/client";
+import { filterAcceptableKeywords } from "@/lib/film-tutor/keyword-filter";
 
 export const runtime = "nodejs";
 
@@ -239,7 +240,8 @@ function heuristicFallback(req: EvaluateRequest): EvaluateResponse {
   }
 
   const wordCount = answer.split(/\s+/).filter(Boolean).length;
-  const keywordHits = req.question.acceptableKeywords.filter((k) => answer.includes(k.toLowerCase())).length;
+  const filteredKeywords = filterAcceptableKeywords(req.question.acceptableKeywords);
+  const keywordHits = filteredKeywords.filter((k) => answer.includes(k.toLowerCase())).length;
   const acceptableHit = req.question.acceptableAnswers.some((a) => answer.includes(a.toLowerCase()));
 
   if (wordCount >= 5 && (acceptableHit || keywordHits >= 1)) {
@@ -285,10 +287,23 @@ function hasCompareConnectionCue(answer: string): boolean {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as EvaluateRequest;
-    const { question, studentAnswer, priorTurns, films, filmInFocus } = body;
+    const { question, studentAnswer, priorTurns, films, filmInFocus, interpretationOverrideSent, compareOverrideSent } = body;
 
     if (!question || !studentAnswer || !filmInFocus) {
       return Response.json({ ok: false, error: "Missing required fields." } satisfies EvaluateResponse, { status: 400 });
+    }
+
+    if (question.focus === "Reflection") {
+      return Response.json({
+        ok: true,
+        verdict: "correct" as EvaluateVerdict,
+        feedback: "Personal reflections like this don't have a wrong answer — noted.",
+      } satisfies EvaluateResponse, { status: 200 });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return Response.json(heuristicFallback(body), { status: 200 });
     }
 
     // Fetch wiki context — filmInFocus first, then others up to Top 4
@@ -302,11 +317,6 @@ export async function POST(request: Request) {
       }
     } catch {
       // Proceed without wiki — heuristic fallback will handle if OpenAI also fails
-    }
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return Response.json(heuristicFallback(body), { status: 200 });
     }
 
     console.log("=== EVALUATION REQUEST ===");
@@ -337,28 +347,42 @@ export async function POST(request: Request) {
       comparePrecheck
     );
 
+    const VALID_VERDICTS = new Set<string>(["correct", "partial", "off_base", "concept_question", "memory_gap"]);
+
     try {
-      const response = await fetch(OPENAI_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: DEFAULT_MODEL,
-          store: false,
-          input: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          text: {
-            format: {
-              type: "json_schema",
-              ...evaluationSchema,
-            },
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+      let response: Response;
+      try {
+        response = await fetch(OPENAI_URL, {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
           },
-        }),
-      });
+          body: JSON.stringify({
+            model: DEFAULT_MODEL,
+            store: false,
+            input: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            text: {
+              format: {
+                type: "json_schema",
+                ...evaluationSchema,
+              },
+            },
+          }),
+        });
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "AbortError";
+        throw new Error(isTimeout ? "OpenAI evaluation request timed out after 30s" : `OpenAI fetch failed: ${err}`);
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -384,11 +408,15 @@ export async function POST(request: Request) {
         return Response.json(heuristicFallback(body), { status: 200 });
       }
 
-      const result = JSON.parse(outputText) as {
+      const rawResult = JSON.parse(outputText) as {
         verdict: EvaluateVerdict;
         feedback: string;
         nextHint: string;
       };
+      if (!VALID_VERDICTS.has(rawResult.verdict) || typeof rawResult.feedback !== "string" || !rawResult.feedback.trim()) {
+        throw new Error(`LLM returned invalid evaluation fields: verdict="${rawResult.verdict}", feedback type=${typeof rawResult.feedback}`);
+      }
+      const result = rawResult;
 
 // Helper: detect if answer has interpretation/reasoning beyond just naming a scene
       const hasInterpretationSignal = (answer: string): boolean => {
@@ -412,12 +440,8 @@ export async function POST(request: Request) {
         );
       };
 
-      const interpretationOverrideAlreadySent = priorTurns.some(
-        (t) => t.role === "tutor" && t.text.includes("You already named a recognizable moment")
-      );
-      const compareOverrideAlreadySent = priorTurns.some(
-        (t) => t.role === "tutor" && t.text.includes("You made a real comparison and grounded it")
-      );
+      const interpretationOverrideAlreadySent = interpretationOverrideSent === true;
+      const compareOverrideAlreadySent = compareOverrideSent === true;
 
       const adjustedResult =
         question.focus === "Interpretation" &&
@@ -449,14 +473,19 @@ export async function POST(request: Request) {
       console.log("=== EVALUATION RESULT ===");
       console.log("Verdict:", adjustedResult.verdict);
       console.log("Feedback:", adjustedResult.feedback);
-      if (adjustedResult.nextHint) console.log("Next hint:", adjustedResult.nextHint);
+      if (adjustedResult.nextHint != null) console.log("Next hint:", adjustedResult.nextHint);
       console.log("========================\n");
+
+      const sentInterpretationOverride = adjustedResult !== result && question.focus === "Interpretation";
+      const sentCompareOverride = adjustedResult !== result && question.focus === "Compare";
 
       const successResponse: EvaluateResponse = {
         ok: true,
         verdict: adjustedResult.verdict,
         feedback: adjustedResult.feedback,
-        ...(adjustedResult.nextHint ? { nextHint: adjustedResult.nextHint } : {}),
+        ...(adjustedResult.nextHint != null ? { nextHint: adjustedResult.nextHint } : {}),
+        ...(sentInterpretationOverride ? { interpretationOverrideSent: true } : {}),
+        ...(sentCompareOverride ? { compareOverrideSent: true } : {}),
       };
       return Response.json(successResponse, { status: 200 });
 

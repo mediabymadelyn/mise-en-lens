@@ -8,7 +8,6 @@ import type { EvaluateRequest, EvaluateResponse, EvaluateVerdict } from "@/lib/f
 import type {
   FilmInput,
   QuizQuestion,
-  ShortAnswerQuestion,
   TutorQuizResponse,
   TutorResponse,
 } from "@/lib/film-tutor/types";
@@ -98,13 +97,17 @@ const CONCEPT_DEFINITIONS: Record<string, string> = {
 };
 
 function detectConceptQuestion(answer: string): string | null {
-  const n = answer.trim().toLowerCase();
+  const n = answer.trim().toLowerCase().replace(/what's/g, "what is");
   for (const [concept, definition] of Object.entries(CONCEPT_DEFINITIONS)) {
     if (
       n.includes(`what is a ${concept}`) ||
-      n.includes(`what's a ${concept}`) ||
       n.includes(`what is ${concept}`) ||
+      n.includes(`what are ${concept}`) ||
+      n.includes(`what are ${concept}s`) ||
       n.includes(`what does ${concept} mean`) ||
+      n.includes(`can you explain ${concept}`) ||
+      n.includes(`explain ${concept}`) ||
+      n.includes(`tell me what ${concept} is`) ||
       n === `${concept}?` ||
       n === `define ${concept}`
     ) {
@@ -117,23 +120,23 @@ function detectConceptQuestion(answer: string): string | null {
   return null;
 }
 
+const AFFIRMATIVE_PHRASES = [
+  "yes", "yeah", "yep", "ok", "okay", "sure", "please", "yes please",
+  "yes sure", "sounds good", "absolutely", "go ahead", "sure thing",
+  "definitely", "of course", "that sounds good",
+];
+const NEGATIVE_PHRASES = [
+  "no", "nope", "nah", "not now", "no thanks", "not really",
+  "i'm good", "im good", "no thank you", "skip it", "never mind", "no need",
+];
+
 function isAffirmativeFollowup(answer: string): boolean {
-  const n = answer.trim().toLowerCase();
-  return ["yes", "yeah", "yep", "ok", "okay", "sure", "please"].includes(n);
+  return AFFIRMATIVE_PHRASES.includes(answer.trim().toLowerCase());
 }
 
 function isNegativeFollowup(answer: string): boolean {
-  const n = answer.trim().toLowerCase();
-  return ["no", "nope", "nah", "not now"].includes(n);
+  return NEGATIVE_PHRASES.includes(answer.trim().toLowerCase());
 }
-
-const FILM_VOCAB = new Set([
-  "framing", "close-up", "closeup", "wide shot", "long shot", "tracking",
-  "montage", "editing", "cut", "cinematography", "lighting", "color",
-  "sound", "silence", "score", "pacing", "composition", "blocking",
-  "performance", "theme", "symbol", "motif", "genre", "atmosphere",
-  "tension", "mood", "tone", "technique", "shot", "scene",
-]);
 
 function isVagueAnswer(answer: string): boolean {
   const n = answer.trim().toLowerCase();
@@ -142,70 +145,6 @@ function isVagueAnswer(answer: string): boolean {
     "idk", "i dont know", "i don't know", "not sure",
     "no idea", "maybe", "unsure", "dont know",
   ].some((p) => n === p || n.includes(p));
-}
-
-// Separate from vague — user is saying they can't recall, not that they don't know the concept
-function isMemoryGap(answer: string): boolean {
-  const n = answer.trim().toLowerCase();
-  return [
-    "i dont remember", "i don't remember", "i can't remember", "i cant remember",
-    "i haven't seen", "i havent seen", "i don't recall", "i dont recall",
-    "i forget", "i forgot", "never seen", "haven't watched", "havent watched",
-  ].some((p) => n.includes(p));
-}
-
-function isOffTopic(
-  answer: string,
-  question: ShortAnswerQuestion,
-  filmTitles: string[]
-): boolean {
-  const n = answer.trim().toLowerCase();
-  // Anything 5+ words long shows genuine engagement — not off-topic
-  if (n.split(/\s+/).filter(Boolean).length >= 5) return false;
-  if (question.acceptableKeywords.some((k) => n.includes(k.toLowerCase()))) return false;
-  if (filmTitles.some((t) => n.includes(t.toLowerCase()))) return false;
-  return ![...FILM_VOCAB].some((w) => n.includes(w));
-}
-
-function evaluateShortAnswer(
-  answer: string,
-  question: ShortAnswerQuestion,
-  filmTitles: string[]
-): "correct" | "partial" | "confused" {
-  const n = answer.trim().toLowerCase();
-  const wordCount = n.split(/\s+/).filter(Boolean).length;
-
-  if (isVagueAnswer(n) || isOffTopic(n, question, filmTitles)) {
-    return "confused";
-  }
-
-  const acceptableHit = question.acceptableAnswers.some((a) => n.includes(a.toLowerCase()));
-  const keywordMatches = question.acceptableKeywords.filter((k) =>
-    n.includes(k.toLowerCase())
-  ).length;
-
-  if (
-    acceptableHit ||
-    keywordMatches >= Math.max(1, Math.ceil(question.acceptableKeywords.length / 3))
-  ) {
-    // Short single-concept answers (≤4 words) on questions that ask for TWO things
-    // (theme + why, technique + feeling) are partial — the student needs to add reasoning
-    const asksTwoThings = /\band\b/.test(question.prompt.toLowerCase()) &&
-      (question.prompt.toLowerCase().includes("say why") ||
-       question.prompt.toLowerCase().includes("what feeling") ||
-       question.prompt.toLowerCase().includes("in one sentence"));
-    if (asksTwoThings && wordCount <= 4) {
-      return "partial";
-    }
-    return "correct";
-  }
-
-  // 5+ word answers that engaged with the question are partial, not confused
-  if (keywordMatches >= 1 || wordCount >= 5) {
-    return "partial";
-  }
-
-  return "confused";
 }
 
 function cleanCardText(text: string): string {
@@ -244,6 +183,10 @@ export default function QuizPage() {
 
   // Hint cycling
   const [hintCycleIndex, setHintCycleIndex] = useState(0);
+  // Suppresses the inline Move On button after the student picks "Hint" from the uncertain-action
+  // row, until they submit another real answer. Without this, attempts >= 2 causes Move On to
+  // reappear immediately, defeating the purpose of giving the hint.
+  const [hintJustGiven, setHintJustGiven] = useState(false);
 
   // Quiz persistence
   const [quizStorageKey, setQuizStorageKey] = useState<string | null>(null);
@@ -275,6 +218,18 @@ export default function QuizPage() {
                 quizData: TutorQuizResponse;
                 questionIndex: number;
                 shortAnswerThread: TutorTurn[];
+                attempts?: number;
+                questionStatus?: QuestionStatus;
+                scaffoldStepIndex?: number;
+                showFallbackMC?: boolean;
+                consecutiveUncertain?: number;
+                consecutiveOffTopic?: number;
+                hintCycleIndex?: number;
+                awaitingConceptFollowup?: boolean;
+                showUncertainActions?: boolean;
+                hintJustGiven?: boolean;
+                interpretationOverrideSent?: boolean;
+                compareOverrideSent?: boolean;
               };
               if (parsed.version === QUIZ_STORAGE_VERSION && parsed.quizData?.quiz) {
                 // Signal the activeQuestion effect to skip its thread reset this once
@@ -282,6 +237,18 @@ export default function QuizPage() {
                 setQuizData(parsed.quizData);
                 setQuestionIndex(parsed.questionIndex ?? 0);
                 setShortAnswerThread(parsed.shortAnswerThread ?? []);
+                setAttempts(parsed.attempts ?? 0);
+                setQuestionStatus(parsed.questionStatus ?? "idle");
+                setScaffoldStepIndex(parsed.scaffoldStepIndex ?? 0);
+                setShowFallbackMC(parsed.showFallbackMC ?? false);
+                setConsecutiveUncertain(parsed.consecutiveUncertain ?? 0);
+                setConsecutiveOffTopic(parsed.consecutiveOffTopic ?? 0);
+                setHintCycleIndex(parsed.hintCycleIndex ?? 0);
+                setAwaitingConceptFollowup(parsed.awaitingConceptFollowup ?? false);
+                setShowUncertainActions(parsed.showUncertainActions ?? false);
+                setHintJustGiven(parsed.hintJustGiven ?? false);
+                setInterpretationOverrideSent(parsed.interpretationOverrideSent ?? false);
+                setCompareOverrideSent(parsed.compareOverrideSent ?? false);
                 restored = true;
               }
             } catch {
@@ -392,10 +359,10 @@ export default function QuizPage() {
     return quizData.quiz.questions[questionIndex] ?? null;
   }, [quizData, questionIndex]);
 
-  const filmTitles = useMemo(
-    () => quizData?.films.map((f) => f.title) ?? [],
-    [quizData]
-  );
+  // Override deduplication flags — server signals these when it applies an override;
+  // client sends them back so the route doesn't repeat the same nudge next turn.
+  const [interpretationOverrideSent, setInterpretationOverrideSent] = useState(false);
+  const [compareOverrideSent, setCompareOverrideSent] = useState(false);
 
   // Reset all per-question state when the active question changes
   useEffect(() => {
@@ -417,7 +384,10 @@ export default function QuizPage() {
     setConsecutiveOffTopic(0);
     setDimmedOptions(new Set());
     setHintCycleIndex(0);
+    setHintJustGiven(false);
     setAwaitingConceptFollowup(false);
+    setInterpretationOverrideSent(false);
+    setCompareOverrideSent(false);
 
     if (activeQuestion?.questionType === "short_answer") {
       setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
@@ -437,12 +407,30 @@ export default function QuizPage() {
           quizData,
           questionIndex,
           shortAnswerThread,
+          attempts,
+          questionStatus,
+          scaffoldStepIndex,
+          showFallbackMC,
+          consecutiveUncertain,
+          consecutiveOffTopic,
+          hintCycleIndex,
+          awaitingConceptFollowup,
+          showUncertainActions,
+          hintJustGiven,
+          interpretationOverrideSent,
+          compareOverrideSent,
         })
       );
     } catch {
       // Quota exceeded or private browsing — skip silently
     }
-  }, [quizData, questionIndex, shortAnswerThread, quizStorageKey]);
+  }, [
+    quizData, questionIndex, shortAnswerThread, quizStorageKey,
+    attempts, questionStatus, scaffoldStepIndex, showFallbackMC,
+    consecutiveUncertain, consecutiveOffTopic, hintCycleIndex,
+    awaitingConceptFollowup, showUncertainActions, hintJustGiven,
+    interpretationOverrideSent, compareOverrideSent,
+  ]);
 
   async function handleSubmitAnswer() {
     if (!activeQuestion) return;
@@ -455,7 +443,7 @@ export default function QuizPage() {
         return;
       }
       const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
+      setAttempts(prev => prev + 1);
       if (newAttempts >= 3) {
         setQuestionStatus("exhausted");
       } else {
@@ -542,8 +530,9 @@ export default function QuizPage() {
       return; // No attempt counted
     }
 
-    // Real answer — reset consecutive uncertain
+    // Real answer — reset consecutive uncertain and hint suppression
     setConsecutiveUncertain(0);
+    setHintJustGiven(false);
     setAwaitingConceptFollowup(false);
 
     setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
@@ -552,13 +541,19 @@ export default function QuizPage() {
 
     let verdict: { ok: true; verdict: EvaluateVerdict; feedback: string; nextHint?: string };
     try {
-      const filmInFocus = quizData?.quiz.transferConcept.filmA ?? (quizData?.films[0]?.title ?? "");
+      const filmInFocus =
+        (activeQuestion as { filmInFocus?: string }).filmInFocus ||
+        quizData?.quiz.transferConcept.filmA ||
+        quizData?.films[0]?.title ||
+        "";
       const payload: EvaluateRequest = {
-        question: activeQuestion,
+        question: activeQuestion as import("@/lib/film-tutor/types").ShortAnswerQuestion,
         studentAnswer: trimmed,
         priorTurns: shortAnswerThread,
         films: (quizData?.films ?? []) as FilmInput[],
         filmInFocus,
+        interpretationOverrideSent,
+        compareOverrideSent,
       };
       const res = await fetch("/api/tutor/evaluate", {
         method: "POST",
@@ -567,6 +562,8 @@ export default function QuizPage() {
       });
       const data = (await res.json()) as EvaluateResponse;
       if (!data.ok) throw new Error(data.error);
+      if (data.interpretationOverrideSent) setInterpretationOverrideSent(true);
+      if (data.compareOverrideSent) setCompareOverrideSent(true);
       verdict = data;
     } catch {
       setShortAnswerThread((cur) => [
@@ -591,7 +588,7 @@ export default function QuizPage() {
 
     if (verdict.verdict === "off_base") {
       // off_base counts as a real attempt so the Move On button unlocks after 2 tries
-      setAttempts(attempts + 1);
+      setAttempts(prev => prev + 1);
       const newOffTopic = consecutiveOffTopic + 1;
       setConsecutiveOffTopic(newOffTopic);
       if (newOffTopic >= 2) {
@@ -601,9 +598,10 @@ export default function QuizPage() {
         ]);
         setShowUncertainActions(true);
       } else {
-        const step = activeQuestion.scaffoldSteps[0];
+        const nextStepIndex = Math.min(scaffoldStepIndex + 1, activeQuestion.scaffoldSteps.length);
+        const step = activeQuestion.scaffoldSteps[nextStepIndex - 1];
         if (step) {
-          setScaffoldStepIndex(1);
+          setScaffoldStepIndex(nextStepIndex);
           setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
           setQuestionStatus("confused");
         } else {
@@ -617,8 +615,7 @@ export default function QuizPage() {
     setConsecutiveOffTopic(0);
 
     // correct and partial both count as a real attempt
-    const newAttempts = attempts + 1;
-    setAttempts(newAttempts);
+    setAttempts(prev => prev + 1);
 
     if (verdict.verdict === "correct") {
       setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
@@ -641,6 +638,7 @@ export default function QuizPage() {
     setConsecutiveOffTopic(0);
 
     if (action === "hint") {
+      setHintJustGiven(true);
       setHintCycleIndex(0);
       setShortAnswerThread((cur) => [
         ...cur,
@@ -651,9 +649,10 @@ export default function QuizPage() {
         setShowFallbackMC(true);
       }
     } else if (action === "simpler") {
-      const step = activeQuestion.scaffoldSteps[0];
+      const nextStepIndex = Math.min(scaffoldStepIndex + 1, activeQuestion.scaffoldSteps.length);
+      const step = activeQuestion.scaffoldSteps[nextStepIndex - 1];
       if (step) {
-        setScaffoldStepIndex(1);
+        setScaffoldStepIndex(nextStepIndex);
         setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
         setQuestionStatus("confused");
       }
@@ -1098,6 +1097,7 @@ export default function QuizPage() {
                       !canAdvance &&
                       !showFallbackMC &&
                       !showUncertainActions &&
+                      !hintJustGiven &&
                       attempts >= 2 ? (
                       <button
                         type="button"

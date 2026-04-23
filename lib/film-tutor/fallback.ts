@@ -1,5 +1,6 @@
 import type { FilmInput, QuizQuestion, TransferSequence, TutorLessonPayload, TutorQuizPayload } from "@/lib/film-tutor/types";
 import type { WikiFilmContext } from "@/lib/wikipedia/client";
+import { filterAcceptableKeywords } from "@/lib/film-tutor/keyword-filter";
 
 const TITLE_KEYWORDS = {
   animation: ["spirited", "totoro", "animated", "spider-verse", "shrek", "coraline", "fantastic mr"],
@@ -210,6 +211,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       correctFeedback: `You identified the connection between visual style and meaning in ${filmA}.`,
       partialFeedback: "Think about what the film's look communicates — not just how it feels, but what it argues.",
       incorrectFeedback: "Consider what the director's visual choices are doing to your understanding of the story, not just your emotions.",
+      filmInFocus: filmA,
     },
     // Q2 — Warm-Up, multiple choice: symbolism or technique in filmA
     {
@@ -267,6 +269,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       correctFeedback: `You connected the film's visual pattern to its thematic argument.`,
       partialFeedback: "You're close — now say what that element is pointing at, not just what it looks or sounds like.",
       incorrectFeedback: `Think about what ${filmA} keeps returning to visually or sonically, and what that repetition is building toward.`,
+      filmInFocus: filmA,
     },
     // Q3 — Interpretation: theme + evidence in filmB
     {
@@ -308,6 +311,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         explanation: "Most character-driven films return to one of these — they are the territory where personal and social conflicts meet.",
       },
       revealAnswerAfterFallback: true,
+      filmInFocus: filmB,
     },
     // Q4 — Interpretation: scene meaning in filmB
     {
@@ -353,6 +357,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         explanation: "Directors choose to linger on certain scenes because they carry weight — they reveal character or push the film's central idea forward.",
       },
       revealAnswerAfterFallback: true,
+      filmInFocus: filmB,
     },
     // Q5 — Compare: filmA vs filmB on shared concept
     {
@@ -387,6 +392,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
           expectedFocus: "identifies a contrast or parallel with Film B",
         },
       ],
+      filmInFocus: filmA,
     },
     // Q6 — Compare: filmA vs filmC on shared concept
     {
@@ -421,6 +427,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
           expectedFocus: "identifies a visual parallel or contrast in Film C",
         },
       ],
+      filmInFocus: filmA,
     },
     // Q7 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
@@ -440,6 +447,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       correctFeedback: "You recognized framing being used to shape emotional experience — the concept in action.",
       partialFeedback: "Focus on what the framing does to your attention, not just what it shows.",
       incorrectFeedback: "Think about what tight framing does to the viewer's focus and feeling.",
+      filmInFocus: filmA,
     },
     // Q8 — Transfer APPLY (short answer) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {
@@ -485,6 +493,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         explanation: `${concept} shows up whenever characters actively affect each other — that's the moment to find.`,
       },
       revealAnswerAfterFallback: false,
+      filmInFocus: filmB,
     },
     // Q9 — Reflection (no fallbackMultipleChoice, no revealAnswerAfterFallback)
     {
@@ -513,6 +522,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
           expectedFocus: "connects impact to a specific cinematic choice",
         },
       ],
+      filmInFocus: filmA,
     },
   ];
 }
@@ -686,9 +696,13 @@ export function buildFallbackQuiz(
   const filmB = films[1]?.title ?? "another film in your Top 4";
 
   const baseQuestions = buildQuizQuestions(films, archetype);
-  const enriched = wikiContext
+  const enrichedRaw = wikiContext
     ? enrichQuizKeywords(baseQuestions, films, wikiContext)
     : baseQuestions;
+  const enriched = enrichedRaw.map((q) => {
+    if (q.questionType !== "short_answer") return q;
+    return { ...q, acceptableKeywords: filterAcceptableKeywords(q.acceptableKeywords) };
+  });
 
   const transferSeq = buildTransferSequence(films, archetype, wikiContext);
   const { _applyKeywords } = transferSeq as TransferSequence & {
@@ -718,6 +732,7 @@ export function buildFallbackQuiz(
         correctFeedback: `Yes — that kind of scene is where ${transferSeq.concept.toLowerCase()} actually lives in ${filmA}.`,
         partialFeedback: "Think about which option describes characters actively affecting each other, not just story mechanics.",
         incorrectFeedback: `Look for the option where characters are directly shaping what happens — that's where ${transferSeq.concept.toLowerCase()} shows up.`,
+        filmInFocus: filmA,
       } satisfies QuizQuestion;
     }
 
@@ -762,6 +777,7 @@ export function buildFallbackQuiz(
           explanation: `${transferSeq.concept} shows up whenever characters actively affect each other — that's the moment to find.`,
         },
         revealAnswerAfterFallback: false,
+        filmInFocus: filmB,
       } satisfies QuizQuestion;
     }
 

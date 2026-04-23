@@ -6,6 +6,8 @@ export type EvaluateRequest = {
   priorTurns: Array<{ role: "tutor" | "user"; text: string }>;
   films: FilmInput[];
   filmInFocus: string;
+  interpretationOverrideSent?: boolean;
+  compareOverrideSent?: boolean;
 };
 
 export type EvaluateVerdict =
@@ -21,5 +23,7 @@ export type EvaluateResponse =
       verdict: EvaluateVerdict;
       feedback: string;
       nextHint?: string;
+      interpretationOverrideSent?: boolean;
+      compareOverrideSent?: boolean;
     }
   | { ok: false; error: string };
