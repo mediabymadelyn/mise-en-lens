@@ -20,7 +20,7 @@ const evaluationSchema = {
       },
       feedback: {
         type: "string",
-        description: "One sentence. Must reference something specific the student wrote. No filler phrases.",
+        description: "For correct: start with 'Correct!' then one sentence explaining specifically what the student did well. For off_base: warmly redirect — acknowledge the answer missed the mark and point toward what the question is asking for. For all other verdicts: one sentence referencing something specific the student wrote. No generic filler like 'Great job!' or 'Keep thinking!'",
       },
       nextHint: { type: "string" },
     },
@@ -35,9 +35,10 @@ const systemPrompt = `You are evaluating a student's answer to a film analysis q
 **correct**: The student names a scene/theme/technique AND provides any explanation connecting it to the question — even if informal, brief, or imperfectly worded. If both pieces are present, return correct. Do NOT ask for further elaboration of an explanation that is already there.
 
 **partial**: The student provides ONE piece but is missing the other entirely. Use this ONLY when:
-- Names a theme but provides zero scene or example (not even an implicit one)
+- The question explicitly asks for a scene or example AND the student names a theme/technique but provides zero scene or example (not even an implicit one)
 - Names a scene but provides zero interpretation or connection whatsoever
 Do NOT return partial if the student gave both pieces in rough form — that is correct.
+Do NOT return partial for a missing scene if the question does not explicitly ask for one.
 
 **off_base**: The answer is wrong, unrelated, or too vague to evaluate. Cases:
 - Gibberish, single unrelated word, or empty response
@@ -67,7 +68,9 @@ Do NOT return partial if the student gave both pieces in rough form — that is 
 
 8. **For compare questions, do not over-require scene detail**: If the student already makes a valid compare claim and starts grounding it in one or more moments, keep the verdict at least partial and ask only for the missing compare piece. Do not restart with "name a specific scene".
 
-9. **One sentence feedback**: Must reference something specific the student wrote. No filler phrases like "Great job!" or "Keep thinking!" or "That's a great observation!"
+9. **Feedback tone**: For correct verdicts, start with "Correct!" then explain in one sentence specifically what the student did well — name the scene or idea they used and why it works. For off_base verdicts, warmly redirect: if the answer is completely irrelevant (gibberish, unrelated topic), say something like "That one's a bit off-track — this question is asking about [restate what the question wants in plain terms]." If the answer is film-related but wrong or too vague, gently correct and point toward what's missing. For all other verdicts, one sentence referencing something specific the student wrote. No generic filler like "Great job!" or "Keep thinking!" or "That's a great observation!"
+
+10. **Scene requirement is question-driven**: Only require a specific scene or example if the question prompt explicitly asks for one — e.g., contains phrases like "name a specific scene", "name one moment", "give an example", "name a specific instance", "name one specific". For questions asking broadly about techniques, themes, or how something shapes meaning across the film, a technique or theme + any explanation is sufficient for correct. Do not ask the student to name a scene if the question did not ask for one.
 
 ## REASONING CHECKLIST (think through before deciding)
 
@@ -86,19 +89,19 @@ Before choosing a verdict, ask yourself:
 Question: "Name a scene in Ponyo that shows friendship"
 Student: "when sauske and ponyo were on the boat it showed friendship"
 Verdict: correct
-Feedback: "The boat scene with Sōsuke and Ponyo does demonstrate their friendship."
+Feedback: "Correct! The boat scene is a strong choice — you identified the moment and named what it shows about their bond."
 
 **Example 2 (correct — informal explanation counts):**
 Question: "Pick a specific scene in Ponyo. What does it show about the character or the film's meaning?"
 Student: "when ponyo and sosuke go on the boat it revealed how much he cared and how much he put on the line to be with her"
 Verdict: correct
-Feedback: "You identified the boat scene and explained what it shows about Sōsuke's character — that works."
+Feedback: "Correct! You grounded it in the boat scene and explained what it reveals about Sōsuke's commitment — that's exactly the kind of connection this question is looking for."
 
 **Example 3 (correct — rough transfer answer counts):**
 Question: "You've seen character development in Juno and Get Out. What is the director trying to make you understand?"
 Student: "in juno giving away the baby and in get out becoming more weary and understanding the impacts of racism"
 Verdict: correct
-Feedback: "You named specific turning points in both films and connected them to what each character learns — that's the transfer."
+Feedback: "Correct! You named a turning point in each film and connected it to what each character learns — that's the transfer the question is asking for."
 
 **Example 4:**
 Question: "How does Little Miss Sunshine explore family dynamics?"
@@ -137,6 +140,12 @@ Student: "moonlight is about identity"
 Verdict: partial
 Feedback: "You've named the theme — now name one specific scene or moment where that plays out."
 NextHint: "Think about a moment where Chiron's sense of self is challenged or revealed."
+
+**Example 10 (correct — conversation reference counts as a specific moment):**
+Question: "What do you think Juno is saying about teenage pregnancy? Name one specific moment."
+Student: "talking to mark about not being able to be a normal teen anymore and being an outlier due to pregnancy"
+Verdict: correct
+Feedback: "Correct! The conversation with Mark where Juno talks about losing her normal teen life is a specific moment that directly supports the sacrifice theme."
 
 ## YOUR TASK
 
@@ -180,7 +189,8 @@ function buildUserPrompt(
     hasCompareClaim: boolean;
     hasEvidenceCue: boolean;
     hasConnectionCue: boolean;
-  } | null
+  } | null,
+  otherWikiFields?: Map<string, WikiFields>
 ): string {
   const historyText =
     req.priorTurns.length > 0
@@ -191,7 +201,7 @@ function buildUserPrompt(
     "QUESTION DETAILS:",
     `- Focus: ${req.question.focus}`,
     `- Prompt: "${req.question.prompt}"`,
-    `- Hint available: "${req.question.hint}"`,
+    `- Hint shown to student (for student guidance only — NOT a constraint on what counts as correct): "${req.question.hint}"`,
     `- Scene reference pre-check: ${hasSceneReferencePrecheck ? "true" : "false"}`,
     hasSceneReferencePrecheck
       ? "- Pre-check note: The student appears to reference a concrete moment/event. Treat scene-grounding as present unless contradicted by Wikipedia context."
@@ -208,6 +218,15 @@ function buildUserPrompt(
     `Plot: ${wikiFields?.plot ?? "Not available"}`,
     `Themes: ${wikiFields?.themes ?? "Not available"}`,
     "",
+    ...(req.question.focus === "Compare" && otherWikiFields && otherWikiFields.size > 0
+      ? [...otherWikiFields.entries()].flatMap(([title, fields]) => [
+          `WIKIPEDIA CONTEXT FOR ${title}:`,
+          `Extract: ${fields.extract}`,
+          `Plot: ${fields.plot ?? "Not available"}`,
+          `Themes: ${fields.themes ?? "Not available"}`,
+          "",
+        ])
+      : []),
     "STUDENT ANSWER:",
     `"${req.studentAnswer}"`,
     "",
@@ -309,11 +328,17 @@ export async function POST(request: Request) {
     // Fetch wiki context — filmInFocus first, then others up to Top 4
     const titlesToFetch = [filmInFocus, ...films.map((f) => f.title).filter((t) => t !== filmInFocus)].slice(0, 4);
     let wikiFields: WikiFields | null = null;
+    const otherWikiFields = new Map<string, WikiFields>();
     try {
       const wikiContext = await fetchWikiContextForFilms(titlesToFetch);
       const ctx = wikiContext.get(filmInFocus);
       if (ctx) {
         wikiFields = { extract: ctx.extract, plot: ctx.plot ?? undefined, themes: ctx.themes ?? undefined };
+      }
+      for (const title of titlesToFetch) {
+        if (title === filmInFocus) continue;
+        const c = wikiContext.get(title);
+        if (c) otherWikiFields.set(title, { extract: c.extract, plot: c.plot ?? undefined, themes: c.themes ?? undefined });
       }
     } catch {
       // Proceed without wiki — heuristic fallback will handle if OpenAI also fails
@@ -344,7 +369,8 @@ export async function POST(request: Request) {
       { question, studentAnswer, priorTurns, films, filmInFocus },
       wikiFields,
       hasSceneReferencePrecheck,
-      comparePrecheck
+      comparePrecheck,
+      otherWikiFields
     );
 
     const VALID_VERDICTS = new Set<string>(["correct", "partial", "off_base", "concept_question", "memory_gap"]);
@@ -466,7 +492,7 @@ export async function POST(request: Request) {
                 feedback:
                   "You made a real comparison and grounded it in a moment; now add one clause explaining how that difference changes what each family relationship/support dynamic means.",
                 nextHint:
-                  "Finish with: this difference matters because ___.",
+                  "Finish with: this difference shapes how each family [reacts / connects / copes] because ___.",
               }
           : result;
 

@@ -139,11 +139,20 @@ function isNegativeFollowup(answer: string): boolean {
 }
 
 function isVagueAnswer(answer: string): boolean {
-  const n = answer.trim().toLowerCase();
+  const n = answer.trim().toLowerCase().replace(/[.!?,]+$/, "");
   if (!n) return true;
   return [
     "idk", "i dont know", "i don't know", "not sure",
     "no idea", "maybe", "unsure", "dont know",
+  ].some((p) => n === p);
+}
+
+function isMoveOnIntent(answer: string): boolean {
+  const n = answer.trim().toLowerCase();
+  return [
+    "move on", "skip", "next question", "can i move on", "can we move on",
+    "let's move on", "lets move on", "i want to move on", "just move on",
+    "skip this", "skip it", "next", "go next", "move forward",
   ].some((p) => n === p || n.includes(p));
 }
 
@@ -513,13 +522,21 @@ export default function QuizPage() {
       return;
     }
 
+    // Intercept move-on intent — surface the action panel, never evaluate
+    if (isMoveOnIntent(trimmed)) {
+      setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
+      setShortAnswer("");
+      setShowUncertainActions(true);
+      return;
+    }
+
     // Intercept vague/idk before LLM — treat as uncertainty, not failure
     if (isVagueAnswer(trimmed)) {
       setShortAnswerThread((cur) => [...cur, { role: "user", text: trimmed }]);
       setShortAnswer("");
       const newConsecutive = consecutiveUncertain + 1;
       setConsecutiveUncertain(newConsecutive);
-      if (newConsecutive >= 3) {
+      if (newConsecutive >= 2 || consecutiveOffTopic >= 1) {
         setShowUncertainActions(true);
       } else {
         setShortAnswerThread((cur) => [
@@ -579,8 +596,14 @@ export default function QuizPage() {
 
     // concept_question and memory_gap: no attempt counted
     if (verdict.verdict === "concept_question" || verdict.verdict === "memory_gap") {
-      setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
-      if (verdict.verdict === "concept_question") {
+      if (verdict.verdict === "memory_gap") {
+        setShortAnswerThread((cur) => [
+          ...cur,
+          { role: "tutor", text: "No problem — here are some options to help you move forward." },
+        ]);
+        setShowUncertainActions(true);
+      } else {
+        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
         setAwaitingConceptFollowup(true);
       }
       return;
@@ -591,22 +614,14 @@ export default function QuizPage() {
       setAttempts(prev => prev + 1);
       const newOffTopic = consecutiveOffTopic + 1;
       setConsecutiveOffTopic(newOffTopic);
-      if (newOffTopic >= 2) {
+      if (newOffTopic >= 2 || consecutiveUncertain >= 1) {
         setShortAnswerThread((cur) => [
           ...cur,
           { role: "tutor", text: "Let me offer a different approach." },
         ]);
         setShowUncertainActions(true);
       } else {
-        const nextStepIndex = Math.min(scaffoldStepIndex + 1, activeQuestion.scaffoldSteps.length);
-        const step = activeQuestion.scaffoldSteps[nextStepIndex - 1];
-        if (step) {
-          setScaffoldStepIndex(nextStepIndex);
-          setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
-          setQuestionStatus("confused");
-        } else {
-          setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
-        }
+        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
       }
       return;
     }
@@ -631,7 +646,7 @@ export default function QuizPage() {
     setQuestionStatus("partial");
   }
 
-  function handleUncertainAction(action: "hint" | "mc" | "simpler" | "moveon") {
+  function handleUncertainAction(action: "hint" | "mc" | "moveon") {
     if (!activeQuestion || activeQuestion.questionType !== "short_answer") return;
     setShowUncertainActions(false);
     setConsecutiveUncertain(0);
@@ -647,14 +662,6 @@ export default function QuizPage() {
     } else if (action === "mc") {
       if (activeQuestion.fallbackMultipleChoice) {
         setShowFallbackMC(true);
-      }
-    } else if (action === "simpler") {
-      const nextStepIndex = Math.min(scaffoldStepIndex + 1, activeQuestion.scaffoldSteps.length);
-      const step = activeQuestion.scaffoldSteps[nextStepIndex - 1];
-      if (step) {
-        setScaffoldStepIndex(nextStepIndex);
-        setShortAnswerThread((cur) => [...cur, { role: "tutor", text: step.prompt }]);
-        setQuestionStatus("confused");
       }
     } else {
       setQuestionStatus("revealed");
@@ -1035,15 +1042,6 @@ export default function QuizPage() {
                                 className="rounded-[1rem] border border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/8 px-4 py-2.5 text-sm font-semibold text-[#d4ebfa] transition hover:bg-[var(--accent-blue)]/15"
                               >
                                 Multiple choice version
-                              </button>
-                            ) : null}
-                            {activeQuestion.scaffoldSteps.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => handleUncertainAction("simpler")}
-                                className="rounded-[1rem] border border-white/15 bg-white/6 px-4 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
-                              >
-                                Simpler version
                               </button>
                             ) : null}
                             <button
