@@ -312,7 +312,7 @@ export async function POST(request: Request) {
       return Response.json({ ok: false, error: "Missing required fields." } satisfies EvaluateResponse, { status: 400 });
     }
 
-    if (question.focus === "Reflection") {
+    if (question.focus?.toLowerCase() === "reflection") {
       return Response.json({
         ok: true,
         verdict: "correct" as EvaluateVerdict,
