@@ -197,6 +197,9 @@ export default function QuizPage() {
   // reappear immediately, defeating the purpose of giving the hint.
   const [hintJustGiven, setHintJustGiven] = useState(false);
 
+  // YouTube recap clip shown after memory_gap
+  const [memoryClip, setMemoryClip] = useState<{ videoId: string; title: string } | null>(null);
+
   // Quiz persistence
   const [quizStorageKey, setQuizStorageKey] = useState<string | null>(null);
   // Prevents the activeQuestion reset effect from wiping shortAnswerThread on storage restore
@@ -397,6 +400,7 @@ export default function QuizPage() {
     setAwaitingConceptFollowup(false);
     setInterpretationOverrideSent(false);
     setCompareOverrideSent(false);
+    setMemoryClip(null);
 
     if (activeQuestion?.questionType === "short_answer") {
       setShortAnswerThread([{ role: "tutor", text: activeQuestion.prompt }]);
@@ -556,13 +560,14 @@ export default function QuizPage() {
     setShortAnswer("");
     setIsEvaluating(true);
 
+    const filmInFocus =
+      (activeQuestion as { filmInFocus?: string }).filmInFocus ||
+      quizData?.quiz.transferConcept.filmA ||
+      quizData?.films[0]?.title ||
+      "";
+
     let verdict: { ok: true; verdict: EvaluateVerdict; feedback: string; nextHint?: string };
     try {
-      const filmInFocus =
-        (activeQuestion as { filmInFocus?: string }).filmInFocus ||
-        quizData?.quiz.transferConcept.filmA ||
-        quizData?.films[0]?.title ||
-        "";
       const payload: EvaluateRequest = {
         question: activeQuestion as import("@/lib/film-tutor/types").ShortAnswerQuestion,
         studentAnswer: trimmed,
@@ -602,6 +607,12 @@ export default function QuizPage() {
           { role: "tutor", text: "No problem — here are some options to help you move forward." },
         ]);
         setShowUncertainActions(true);
+        void fetch(`/api/film-clip?title=${encodeURIComponent(filmInFocus)}`)
+          .then((r) => r.json())
+          .then((d: { ok: boolean; videoId?: string; title?: string }) => {
+            if (d.ok && d.videoId && d.title) setMemoryClip({ videoId: d.videoId, title: d.title });
+          })
+          .catch(() => undefined);
       } else {
         setShortAnswerThread((cur) => [...cur, { role: "tutor", text: verdict.feedback }]);
         setAwaitingConceptFollowup(true);
@@ -725,20 +736,15 @@ export default function QuizPage() {
   const availableHints = useMemo(() => {
     if (!activeQuestion) return [] as string[];
     const hints: string[] = [activeQuestion.hint];
-    if (currentScaffoldStep?.hint && currentScaffoldStep.hint !== activeQuestion.hint) {
-      hints.push(currentScaffoldStep.hint);
-    }
-    for (const word of Object.keys(CONCEPT_DEFINITIONS)) {
-      if (
-        activeQuestion.prompt.toLowerCase().includes(word) ||
-        activeQuestion.focus.toLowerCase().includes(word)
-      ) {
-        hints.push(CONCEPT_DEFINITIONS[word]);
-        break;
+    if (activeQuestion.questionType === "short_answer") {
+      for (const step of activeQuestion.scaffoldSteps) {
+        if (step.hint && step.hint !== activeQuestion.hint && !hints.includes(step.hint)) {
+          hints.push(step.hint);
+        }
       }
     }
     return hints;
-  }, [activeQuestion, currentScaffoldStep]);
+  }, [activeQuestion]);
 
   const hintText = availableHints[hintCycleIndex % Math.max(1, availableHints.length)] ?? "";
 
@@ -1024,6 +1030,17 @@ export default function QuizPage() {
                         </div>
                       ) : showUncertainActions && !canAdvance ? (
                         <div className="rounded-[1.1rem] border border-white/10 bg-white/5 p-4 space-y-3">
+                          {memoryClip ? (
+                            <a
+                              href={`https://www.youtube.com/watch?v=${memoryClip.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 overflow-hidden rounded-[0.75rem] border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--text-soft)] transition hover:bg-white/10"
+                            >
+                              <span>▶</span>
+                              <span className="min-w-0 flex-1 truncate">Watch a recap: {memoryClip.title}</span>
+                            </a>
+                          ) : null}
                           <p className="text-xs font-semibold tracking-[0.18em] uppercase text-[var(--text-muted)]">
                             Pick one to continue
                           </p>

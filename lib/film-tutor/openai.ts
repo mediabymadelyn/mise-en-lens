@@ -335,7 +335,7 @@ function buildQuizPrompt(
     "- Step 1: ask for one small, concrete thing only. Do NOT ask for interpretation at step 1.",
     "- Step 2: build on step 1 — ask the student to say something about what they named.",
     "- Step 3 (optional): ask for a fuller explanation if step 2 is still too simple.",
-    "- Each step's hint must name at least one concrete example. Never write 'think about the film's themes' or 'consider the story.'",
+    "- Each step's hint must name a specific character, scene, or moment from the actual film — not a vague direction like 'think about how the family behaves' or 'consider the story.' For compare questions, each scaffold step hint must anchor a specific moment from EACH of the two films being compared.",
     "- Each step's expectedFocus is a short phrase describing the ideal cognitive move.",
     "",
     "=== TUTOR BEHAVIOR RULES ===",
@@ -357,7 +357,8 @@ function buildQuizPrompt(
     "- correctFeedback: one sentence naming exactly what was right. No filler.",
     "- partialFeedback: name the specific part that was right, then ask ONE targeted refinement question.",
     "- incorrectFeedback: explain what was missed without giving away the answer.",
-    "- hint: must name at least one concrete anchor — a character, scene, or technique.",
+    "- hint (all questions): MUST name a specific character, moment, or detail from the actual film. NEVER explain what a word means, define a concept, or give a fill-in-the-blank template. The hint should help the student recall or notice something in the film — not teach them vocabulary. For open-ended interpretation questions, name a specific scene or character decision and ask what it suggests. BAD: 'Think about how the family behaves in crisis.' GOOD: 'Think about the moment Olive's family joins her on stage — what does each member's reaction say about them as a unit?'",
+    "- hint (compare questions): MUST name a specific moment or character detail from EACH of the two films being compared, then prompt the student to notice what they share or how they differ. Never anchor only one film. BAD: 'Think about how both families behave in crisis.' GOOD: 'In Little Miss Sunshine, the Hoovers rally around Olive at the pageant despite everything falling apart. In Juno, her parents absorb the pregnancy news and keep showing up — what is similar about how these families respond?'",
     "",
     "=== OTHER RULES ===",
     "- Do NOT ask about release years.",
@@ -384,7 +385,7 @@ async function generateWithOpenAI<T>(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60_000);
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
   let response: Response;
   try {
