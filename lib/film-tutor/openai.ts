@@ -367,6 +367,7 @@ function buildQuizPrompt(
     "- maxWords for every short_answer must be between 12 and 25. Never below 12.",
     "- Q5 and Q6 focus must be 'Compare'. Q9 focus must be 'Reflection'.",
     "- For each question, set filmInFocus to the exact film title that the question primarily focuses on. For compare questions, set it to the first film mentioned in the prompt. For Q9 Reflection, set it to the first film in the Top 4 list.",
+    "- filmInFocus MUST be one of the exact titles from the Top 4 list below. Never introduce, invent, or reference a film that is not in the Top 4.",
     "- COVERAGE RULE: Every film in the Top 4 must appear as filmInFocus for at least one question across Q1-Q8. Do not use the same film more than twice across Q1-Q6.",
     "",
     "Top 4:",
@@ -466,6 +467,18 @@ function filterQuizKeywords(quiz: TutorQuizPayload): TutorQuizPayload {
   };
 }
 
+function clampFilmInFocus(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuizPayload {
+  const validTitles = new Set(films.map((f) => f.title));
+  return {
+    ...quiz,
+    questions: quiz.questions.map((q) => {
+      if (validTitles.has(q.filmInFocus)) return q;
+      const mentioned = films.find((f) => q.prompt.toLowerCase().includes(f.title.toLowerCase()));
+      return { ...q, filmInFocus: mentioned?.title ?? films[0]?.title ?? q.filmInFocus };
+    }),
+  };
+}
+
 function normalizeQuizHintCoherence(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuizPayload {
   const filmTitles = films.map((f) => f.title);
 
@@ -506,5 +519,5 @@ export async function generateQuizWithOpenAI(
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorQuizPayload> {
   const quiz = await generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
-  return filterQuizKeywords(normalizeQuizHintCoherence(quiz, films));
+  return filterQuizKeywords(normalizeQuizHintCoherence(clampFilmInFocus(quiz, films), films));
 }

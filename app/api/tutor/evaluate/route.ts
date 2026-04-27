@@ -72,6 +72,8 @@ Do NOT return partial for a missing scene if the question does not explicitly as
 
 10. **Scene requirement is question-driven**: Only require a specific scene or example if the question prompt explicitly asks for one — e.g., contains phrases like "name a specific scene", "name one moment", "give an example", "name a specific instance", "name one specific". For questions asking broadly about techniques, themes, or how something shapes meaning across the film, a technique or theme + any explanation is sufficient for correct. Do not ask the student to name a scene if the question did not ask for one.
 
+11. **A named recurring motif or ritual counts as a moment**: If a student describes a specific recurring action, habit, or motif in the film — e.g., "he consistently tries to play their song in the car," "she keeps returning to the same location" — treat it as equivalent to naming a scene, provided it is specific to the film and names what is happening and who is involved. Do not penalize for describing something that recurs rather than isolating a single instance. A recurring element that is identifiable and film-specific satisfies the scene-grounding requirement.
+
 ## REASONING CHECKLIST (think through before deciding)
 
 Before choosing a verdict, ask yourself:
