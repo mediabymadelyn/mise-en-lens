@@ -244,6 +244,7 @@ export default function QuizPage() {
                 hintJustGiven?: boolean;
                 interpretationOverrideSent?: boolean;
                 compareOverrideSent?: boolean;
+                quizComplete?: boolean;
               };
               if (parsed.version === QUIZ_STORAGE_VERSION && parsed.quizData?.quiz) {
                 // Signal the activeQuestion effect to skip its thread reset this once
@@ -263,6 +264,7 @@ export default function QuizPage() {
                 setHintJustGiven(parsed.hintJustGiven ?? false);
                 setInterpretationOverrideSent(parsed.interpretationOverrideSent ?? false);
                 setCompareOverrideSent(parsed.compareOverrideSent ?? false);
+                setQuizComplete(parsed.quizComplete ?? false);
                 restored = true;
               }
             } catch {
@@ -434,6 +436,7 @@ export default function QuizPage() {
           hintJustGiven,
           interpretationOverrideSent,
           compareOverrideSent,
+          quizComplete,
         })
       );
     } catch {
@@ -444,7 +447,7 @@ export default function QuizPage() {
     attempts, questionStatus, scaffoldStepIndex, showFallbackMC,
     consecutiveUncertain, consecutiveOffTopic, hintCycleIndex,
     awaitingConceptFollowup, showUncertainActions, hintJustGiven,
-    interpretationOverrideSent, compareOverrideSent,
+    interpretationOverrideSent, compareOverrideSent, quizComplete,
   ]);
 
   async function handleSubmitAnswer() {
@@ -817,7 +820,7 @@ export default function QuizPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={`/?prefill=${encodeURIComponent(quizData.username)}`}
+                      href={quizData.username === "Manual entry" ? "/" : `/?prefill=${encodeURIComponent(quizData.username)}`}
                       className="inline-flex items-center rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10"
                     >
                       Back to lesson

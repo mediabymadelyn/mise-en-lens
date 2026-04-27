@@ -33,18 +33,19 @@ const lessonSchema = {
       },
       filmNotes: {
         type: "array",
-        minItems: 4,
+        minItems: 3,
         maxItems: 4,
         items: {
           type: "object",
           additionalProperties: false,
           properties: {
             title: { type: "string" },
+            genreTag: { type: "string" },
             summary: { type: "string" },
             artisticElements: { type: "string" },
             societalContext: { type: "string" },
           },
-          required: ["title", "summary", "artisticElements", "societalContext"],
+          required: ["title", "genreTag", "summary", "artisticElements", "societalContext"],
         },
       },
       recommendation: {
@@ -52,12 +53,13 @@ const lessonSchema = {
         additionalProperties: false,
         properties: {
           title: { type: "string" },
+          genreTag: { type: "string" },
           whyYouMightLikeIt: { type: "string" },
           educationalRedirect: { type: "string" },
           posterUrl: { type: ["string", "null"] },
           filmUrl: { type: ["string", "null"] },
         },
-        required: ["title", "whyYouMightLikeIt", "educationalRedirect", "posterUrl", "filmUrl"],
+        required: ["title", "genreTag", "whyYouMightLikeIt", "educationalRedirect", "posterUrl", "filmUrl"],
       },
     },
     required: [
