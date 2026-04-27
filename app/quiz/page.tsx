@@ -200,6 +200,8 @@ export default function QuizPage() {
   // YouTube recap clip shown after memory_gap
   const [memoryClip, setMemoryClip] = useState<{ videoId: string; title: string } | null>(null);
 
+  const [quizComplete, setQuizComplete] = useState(false);
+
   // Quiz persistence
   const [quizStorageKey, setQuizStorageKey] = useState<string | null>(null);
   // Prevents the activeQuestion reset effect from wiping shortAnswerThread on storage restore
@@ -711,7 +713,10 @@ export default function QuizPage() {
 
   function handleNextQuestion() {
     if (!quizData) return;
-    if (questionIndex >= quizData.quiz.questions.length - 1) return;
+    if (questionIndex >= quizData.quiz.questions.length - 1) {
+      setQuizComplete(true);
+      return;
+    }
     setQuestionIndex((i) => i + 1);
   }
 
@@ -850,6 +855,38 @@ export default function QuizPage() {
                     >
                       Return home
                     </Link>
+                  </div>
+                </div>
+              ) : quizComplete && quizData ? (
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--accent-green)]">
+                      Quiz complete
+                    </p>
+                    <h2 className="mt-2 font-serif text-3xl text-white">Nice work!</h2>
+                  </div>
+                  <p className="text-sm leading-7 text-[var(--text-soft)]">
+                    You worked through all {quizData.quiz.questions.length} questions. Keep
+                    exploring — film literacy builds with every viewing.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Link
+                      href={
+                        quizData.username === "Manual entry"
+                          ? "/"
+                          : `/?prefill=${encodeURIComponent(quizData.username)}`
+                      }
+                      className="inline-flex items-center rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105"
+                    >
+                      Back to lesson
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleStartOver}
+                      className="rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-white/10"
+                    >
+                      Try again
+                    </button>
                   </div>
                 </div>
               ) : quizData && activeQuestion ? (
@@ -1125,10 +1162,10 @@ export default function QuizPage() {
                     <button
                       type="button"
                       onClick={handleNextQuestion}
-                      disabled={!canAdvance || isLastQuestion}
+                      disabled={!canAdvance}
                       className="rounded-[1rem] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Next question
+                      {isLastQuestion ? "Finish quiz" : "Next question"}
                     </button>
                   </div>
 
@@ -1179,12 +1216,6 @@ export default function QuizPage() {
                     </div>
                   ) : null}
 
-                  {isLastQuestion && canAdvance ? (
-                    <div className="rounded-[1.2rem] border border-white/10 bg-white/5 px-4 py-4 text-sm leading-7 text-[var(--text-soft)]">
-                      You reached the final question. You can return to the lesson or stay here and
-                      revise your answer before moving on.
-                    </div>
-                  ) : null}
                 </>
               ) : null}
             </div>

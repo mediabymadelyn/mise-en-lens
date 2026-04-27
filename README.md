@@ -30,6 +30,17 @@ OPENAI_API_KEY=sk-...
 |---|---|---|---|
 | `OPENAI_API_KEY` | No | — | OpenAI API key for AI-generated lessons and quizzes. Without it, the app falls back to a built-in lesson generator. |
 | `OPENAI_FILM_TUTOR_MODEL` | No | `gpt-4o-mini` | Override the OpenAI model used for tutor generation. |
+| `YOUTUBE_API_KEY` | No | — | YouTube Data API v3 key. When set, the quiz surfaces a recap video link when a student indicates they don't remember a film. Without it, the recap feature is silently disabled. |
+
+### Getting a YouTube Data API key
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project (or select an existing one)
+3. Enable the **YouTube Data API v3** under APIs & Services → Library
+4. Create an API key under APIs & Services → Credentials
+5. Add it to your `.env` file as `YOUTUBE_API_KEY=your_key_here`
+
+The free tier allows ~100 search requests per day (10,000 quota units; each search costs 100 units). The recap feature fires one search per memory-gap event, so this is sufficient for normal usage.
 
 ## Testing Wikipedia integration
 

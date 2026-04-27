@@ -47,6 +47,8 @@ export default function Home() {
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [confirmedFilms, setConfirmedFilms] = useState<ConfirmedFilm[] | null>(null);
+  const [isManualMode, setIsManualMode] = useState(false);
+  const [isGeneratingLesson, setIsGeneratingLesson] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -140,7 +142,7 @@ export default function Home() {
     }
   }
 
-  function handleManualConfirm() {
+  async function handleManualConfirm() {
     if (!confirmedFilms) return;
     const films: FilmInput[] = confirmedFilms
       .filter((f) => f.found && f.confirmed)
@@ -157,7 +159,27 @@ export default function Home() {
     }
 
     sessionStorage.setItem("manualFilms", JSON.stringify(films));
-    window.location.href = `/quiz?source=manual`;
+
+    setTop4({ ok: true, username: "Your Top 4", source_url: "", films });
+    setIsManualMode(true);
+    setIsGeneratingLesson(true);
+    setLesson(null);
+
+    try {
+      const tutorResponse = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "blurb", username: "Your Top 4", source_url: "manual", films }),
+      });
+      const tutorPayload = (await tutorResponse.json()) as TutorResponse;
+      if (tutorPayload.ok && tutorPayload.mode === "blurb") {
+        setLesson(tutorPayload);
+      }
+    } catch {
+      // silent — user can still reach the quiz via the lesson section once it loads
+    } finally {
+      setIsGeneratingLesson(false);
+    }
   }
 
   return (
@@ -331,10 +353,11 @@ export default function Home() {
                       ))}
                       <button
                         type="button"
-                        onClick={handleManualConfirm}
-                        className="h-12 rounded-[1.1rem] bg-[var(--accent-orange)] px-5 text-sm font-semibold text-[#1f232a] transition hover:brightness-105"
+                        onClick={() => { void handleManualConfirm(); }}
+                        disabled={isGeneratingLesson}
+                        className="h-12 rounded-[1.1rem] bg-[var(--accent-orange)] px-5 text-sm font-semibold text-[#1f232a] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
                       >
-                        Continue to quiz
+                        {isGeneratingLesson ? "Building lesson..." : "Build my lesson"}
                       </button>
                     </div>
                   ) : null}
@@ -382,10 +405,12 @@ export default function Home() {
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <p className="text-xs font-semibold tracking-[0.24em] uppercase text-[var(--accent-orange)]">
-                      Profile found
+                      {isManualMode ? "Your films" : "Profile found"}
                     </p>
                     <h2 className="font-serif text-3xl">{top4.username}</h2>
-                    <p className="text-sm break-all text-[var(--text-muted)]">{top4.source_url}</p>
+                    {top4.source_url ? (
+                      <p className="text-sm break-all text-[var(--text-muted)]">{top4.source_url}</p>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -597,7 +622,7 @@ export default function Home() {
                 </p>
                 <div className="mt-5">
                   <Link
-                    href={`/quiz?username=${encodeURIComponent(lesson.username)}`}
+                    href={isManualMode ? `/quiz?source=manual` : `/quiz?username=${encodeURIComponent(lesson.username)}`}
                     className="inline-flex items-center rounded-[1rem] bg-[var(--accent-green)] px-4 py-3 text-sm font-semibold text-[#1f232a] transition hover:brightness-105"
                   >
                     Practice with quiz
