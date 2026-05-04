@@ -69,7 +69,7 @@ This project was developed with assistance from Claude and Codex. Mise-en-Lens a
 - [Prompt changelog](docs/prompt-changelog.md)
 - [Test scenarios](docs/test-scenarios.md)
 - [User testing notes](docs/user-testing-notes.md)
-- [Productization plan](docs/productization-plan.md)
+- [Productionization plan](docs/productionization.md)
 
 ## Wikipedia Test Command
 
