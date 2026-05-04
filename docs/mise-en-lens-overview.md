@@ -26,7 +26,7 @@ Create a `.env.local` file in the project root:
 OPENAI_API_KEY=sk-..
 ```
 
-You can start from [.env.example](../.env.example) and rename or copy it to `.env.local`.
+Copy `.env.example` to `.env.local` before running the app.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
