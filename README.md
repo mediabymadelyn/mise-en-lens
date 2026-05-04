@@ -33,6 +33,8 @@ The quiz flow is based on scaffolded learning: students begin with easier recogn
 
 ## Getting Started
 
+> **Note:** This is a Node.js project. Dependencies are listed in `package.json`. Run `npm install` instead of `pip install -r requirements.txt`.
+
 ```bash
 npm install
 npm run dev
