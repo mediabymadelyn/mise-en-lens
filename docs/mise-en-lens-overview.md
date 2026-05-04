@@ -26,6 +26,8 @@ Create a `.env.local` file in the project root:
 OPENAI_API_KEY=sk-..
 ```
 
+You can start from [.env.example](../.env.example) and rename or copy it to `.env.local`.
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `OPENAI_API_KEY` | No | — | OpenAI API key for AI-generated lessons and quizzes. Without it, the app falls back to a built-in lesson generator. |
