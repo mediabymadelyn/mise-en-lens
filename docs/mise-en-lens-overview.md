@@ -23,7 +23,7 @@ The app will be available at `http://localhost:3000`.
 Create a `.env.local` file in the project root:
 
 ```
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=sk-..
 ```
 
 | Variable | Required | Default | Description |
@@ -54,4 +54,4 @@ npx tsx scripts/test-wikipedia.ts "Moonlight"
 
 This prints every field populated from Wikipedia, shows how each module uses the data, and demonstrates the before/after impact on quiz answer verification keywords.
 
-See [architecture-diagrams/wikipedia-integration.md](architecture-diagrams/wikipedia-integration.md) for the full data flow diagram.
+See [wikipedia-integration-architecture.md](wikipedia-integration-architecture.md) for the full data flow diagram.
