@@ -4,6 +4,7 @@ import type { FilmInput, TutorLessonPayload, TutorMode, TutorResponse } from "@/
 import { fetchWikiContextForFilms, type WikiFilmContext } from "@/lib/wikipedia/client";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type TutorRequestBody = {
   mode?: TutorMode;

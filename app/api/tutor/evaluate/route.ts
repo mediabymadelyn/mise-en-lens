@@ -3,6 +3,7 @@ import { fetchWikiContextForFilms } from "@/lib/wikipedia/client";
 import { filterAcceptableKeywords } from "@/lib/film-tutor/keyword-filter";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_FILM_TUTOR_EVAL_MODEL || "gpt-4o-mini";

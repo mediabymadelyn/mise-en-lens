@@ -388,7 +388,7 @@ async function generateWithOpenAI<T>(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120_000);
+  const timeoutId = setTimeout(() => controller.abort(), 58_000);
 
   let response: Response;
   try {
@@ -413,7 +413,7 @@ async function generateWithOpenAI<T>(
     });
   } catch (err) {
     const isTimeout = err instanceof Error && err.name === "AbortError";
-    throw new Error(isTimeout ? "OpenAI request timed out after 60s" : `OpenAI fetch failed: ${err}`);
+    throw new Error(isTimeout ? "OpenAI request timed out after 58s" : `OpenAI fetch failed: ${err}`);
   } finally {
     clearTimeout(timeoutId);
   }
