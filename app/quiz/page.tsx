@@ -209,6 +209,8 @@ export default function QuizPage() {
   const skipThreadResetRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadQuiz() {
       const params = new URLSearchParams(window.location.search);
       const source = params.get("source");
@@ -353,6 +355,7 @@ export default function QuizPage() {
         });
 
         const tutorPayload = (await tutorResponse.json()) as TutorResponse;
+        if (cancelled) return;
         if (tutorPayload.ok && tutorPayload.mode === "quiz") {
           setQuizData(tutorPayload);
           setQuestionIndex(0);
@@ -362,13 +365,15 @@ export default function QuizPage() {
 
         setError("Unable to load the quiz.");
       } catch {
+        if (cancelled) return;
         setError("The quiz could not be loaded right now. Try again in a moment.");
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }
 
     void loadQuiz();
+    return () => { cancelled = true; };
   }, []);
 
   const activeQuestion = useMemo((): QuizQuestion | null => {

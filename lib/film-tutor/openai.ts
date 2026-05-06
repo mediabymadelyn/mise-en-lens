@@ -351,12 +351,13 @@ function buildQuizPrompt(
     "- Remove filler feedback ('Great insight!', 'That resonates deeply', 'Exactly!'). Feedback must name something specific.",
     "",
     "=== QUESTION-WRITING RULES ===",
-    "1. Do not stack two cognitive tasks in one question unless it is the final step of a scaffold sequence.",
-    "2. Early scaffold steps ask for one thing only.",
-    "3. Require specificity. A one-word answer like 'family' should score as partial, not correct.",
-    "4. Do NOT use these phrases: 'why the film cares about it', 'what feeling it creates', 'Think about the film's emotional journey', 'Consider the story.'",
-    "5. Use wording like: 'What is the film saying about ___?', 'What does this moment show about the character or theme?', 'What is the director trying to make you understand?'",
-    "6. Multiple choice distractors must be plausible and specific — scene descriptions, not abstract labels.",
+    "1. Do not ask what a character name or film title symbolizes. Ask about specific scenes, cinematic choices, or themes instead.",
+    "2. Do not stack two cognitive tasks in one question unless it is the final step of a scaffold sequence.",
+    "3. Early scaffold steps ask for one thing only.",
+    "4. Require specificity. A one-word answer like 'family' should score as partial, not correct.",
+    "5. Do NOT use these phrases: 'why the film cares about it', 'what feeling it creates', 'Think about the film's emotional journey', 'Consider the story.'",
+    "6. Use wording like: 'What is the film saying about ___?', 'What does this moment show about the character or theme?', 'What is the director trying to make you understand?'",
+    "7. Multiple choice distractors must be plausible and specific — scene descriptions, not abstract labels.",
     "",
     "=== FEEDBACK RULES ===",
     "- correctFeedback: one sentence naming exactly what was right. No filler.",
@@ -370,7 +371,7 @@ function buildQuizPrompt(
     "- Never use em dashes in question prompts or text.",
     "- acceptableAnswers and acceptableKeywords must come from the wiki reference context.",
     "- maxWords for every short_answer must be between 12 and 25. Never below 12.",
-    "- Q5 and Q6 focus must be 'Compare'. Q9 focus must be 'Reflection'.",
+    "- Q1 and Q2 focus must be 'Warm-Up'. Q3 and Q4 focus must be 'Interpretation'. Q5 and Q6 focus must be 'Compare'. Q7 and Q8 focus must be 'Transfer'. Q9 focus must be 'Reflection'.",
     "- For each question, set filmInFocus to the exact film title that the question primarily focuses on. For compare questions, set it to the first film mentioned in the prompt. For Q9 Reflection, set it to the first film in the Top 4 list.",
     "- filmInFocus MUST be one of the exact titles from the Top 4 list below. Never introduce, invent, or reference a film that is not in the Top 4.",
     "- COVERAGE RULE: Every film in the Top 4 must appear as filmInFocus for at least one question across Q1-Q8. Do not use the same film more than twice across Q1-Q6.",
@@ -483,6 +484,33 @@ function clampFilmInFocus(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuiz
   };
 }
 
+const CANONICAL_FOCUS = [
+  "Warm-Up", "Warm-Up",
+  "Interpretation", "Interpretation",
+  "Compare", "Compare",
+  "Transfer", "Transfer",
+  "Reflection",
+] as const;
+
+function sortQuestionsByIndex(quiz: TutorQuizPayload): TutorQuizPayload {
+  const sorted = [...quiz.questions].sort((a, b) => {
+    const numA = parseInt(a.id.replace(/\D/g, ""), 10);
+    const numB = parseInt(b.id.replace(/\D/g, ""), 10);
+    return numA - numB;
+  });
+  return { ...quiz, questions: sorted };
+}
+
+function normalizeQuestionFocus(quiz: TutorQuizPayload): TutorQuizPayload {
+  return {
+    ...quiz,
+    questions: quiz.questions.map((q, i) => ({
+      ...q,
+      focus: CANONICAL_FOCUS[i] ?? q.focus,
+    })),
+  };
+}
+
 function normalizeQuizHintCoherence(quiz: TutorQuizPayload, films: FilmInput[]): TutorQuizPayload {
   const filmTitles = films.map((f) => f.title);
 
@@ -523,5 +551,7 @@ export async function generateQuizWithOpenAI(
   wikiContext: Map<string, WikiFilmContext | null>
 ): Promise<TutorQuizPayload> {
   const quiz = await generateWithOpenAI<TutorQuizPayload>(buildQuizPrompt(films, wikiContext), quizSchema);
-  return filterQuizKeywords(normalizeQuizHintCoherence(clampFilmInFocus(quiz, films), films));
+  const sorted = sortQuestionsByIndex(quiz);
+  const focused = normalizeQuestionFocus(sorted);
+  return filterQuizKeywords(normalizeQuizHintCoherence(clampFilmInFocus(focused, films), films));
 }
