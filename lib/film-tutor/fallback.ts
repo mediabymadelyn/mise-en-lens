@@ -214,11 +214,11 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       incorrectFeedback: "Consider what the director's visual choices are doing to your understanding of the story, not just your emotions.",
       filmInFocus: filmA,
     },
-    // Q2 — Warm-Up, multiple choice: symbolism or technique in filmA
+    // Q2 — Warm-Up, multiple choice: symbolism or technique in filmB
     {
       id: "q2",
       questionType: "multiple_choice",
-      prompt: `In ${filmA}, what do recurring visual or sound elements most likely represent?`,
+      prompt: `In ${filmB}, what do recurring visual or sound elements most likely represent?`,
       focus: "Warm-Up",
       hint: "Think about something you noticed more than once — a color, object, sound, or kind of shot. What does the film keep returning to?",
       explanation: "Recurring elements are deliberate — directors use repetition to build meaning across a film.",
@@ -269,8 +269,8 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
                 : "The film's central thematic concerns — what it keeps returning to",
       correctFeedback: `You connected the film's visual pattern to its thematic argument.`,
       partialFeedback: "You're close — now say what that element is pointing at, not just what it looks or sounds like.",
-      incorrectFeedback: `Think about what ${filmA} keeps returning to visually or sonically, and what that repetition is building toward.`,
-      filmInFocus: filmA,
+      incorrectFeedback: `Think about what ${filmB} keeps returning to visually or sonically, and what that repetition is building toward.`,
+      filmInFocus: filmB,
     },
     // Q3 — Interpretation: theme + evidence in filmB
     {
@@ -706,76 +706,68 @@ export function buildFallbackQuiz(
   });
 
   const transferSeq = buildTransferSequence(films, archetype, wikiContext);
-  const { _applyKeywords } = transferSeq as TransferSequence & {
-    _verifyCorrectAnswer: string;
-    _applyKeywords: string[];
-  };
 
   // Overwrite Q7 (verify MC) and Q8 (apply SA) with TransferSequence-specific content
   const questions: QuizQuestion[] = enriched.map((q) => {
     if (q.id === "q7") {
-      // Build four plausible scene descriptions — correct answer paraphrases, never copies, the teachStatement.
-      const correctOption = `A scene in ${filmA} where a character relationship directly shapes the outcome`;
+      const correctOption = `A scene where ${transferSeq.concept.toLowerCase()} is the reason a character's choice or feeling changes`;
       return {
         id: "q7",
         questionType: "multiple_choice",
-        prompt: `Which of these in ${filmA} best shows ${transferSeq.concept.toLowerCase()} at work?`,
+        prompt: `Which of these best describes a moment where ${transferSeq.concept.toLowerCase()} is doing real work in ${filmA}?`,
         focus: "Apply",
-        hint: `Think about which option describes something that involves the characters directly — not just plot mechanics or background detail.`,
+        hint: `Look for the option where the concept is actively shaping what a character does or feels — not just present in the background.`,
         explanation: "Recognizing the concept in a specific scene shows you can read film, not just name ideas.",
         options: [
           correctOption,
-          `A moment where a character discovers new information that changes the plot`,
-          `A scene that introduces a secondary character who doesn't affect the main story`,
-          `An opening sequence that establishes the film's setting and time period`,
+          `A scene where a character acts alone and the outcome would be the same regardless of the concept`,
+          `A wide shot that establishes location and mood before any character interaction begins`,
+          `A scene where background details fill the frame but no relationship or decision is being tested`,
         ],
         correctAnswer: correctOption,
-        correctFeedback: `Yes — that kind of scene is where ${transferSeq.concept.toLowerCase()} actually lives in ${filmA}.`,
-        partialFeedback: "Think about which option describes characters actively affecting each other, not just story mechanics.",
-        incorrectFeedback: `Look for the option where characters are directly shaping what happens — that's where ${transferSeq.concept.toLowerCase()} shows up.`,
+        correctFeedback: `Yes — when the concept actively changes what a character decides or feels, that's where it does real work in ${filmA}.`,
+        partialFeedback: `Think about which option shows the concept shaping something — a feeling, a choice, a relationship — not just existing in the scene.`,
+        incorrectFeedback: `Look for the option where the concept is the reason something changes, not just present as background.`,
         filmInFocus: filmA,
       } satisfies QuizQuestion;
     }
 
     if (q.id === "q8") {
-      const applyKeywords = _applyKeywords.length > 0
-        ? _applyKeywords
-        : ["framing", "silence", "color", "sound", "close-up", "family", "moment"];
       return {
         id: "q8",
         questionType: "short_answer",
-        prompt: `Now find ${transferSeq.concept.toLowerCase()} in ${filmB} — describe one specific moment or technique in one sentence.`,
+        prompt: `Think about ${filmB}. What would be lost if ${transferSeq.concept.toLowerCase()} were removed from the film? Name one specific moment that shows why it matters.`,
         focus: "Apply",
-        hint: `Describe one specific scene in ${filmB}. You don't need a technical term — just name what happens and what it shows.`,
-        explanation: "Transfer means taking what you learned and finding it somewhere new.",
+        hint: `Pick one scene in ${filmB} where ${transferSeq.concept.toLowerCase()} is clearly present. Then ask: if that element weren't there, what would the film be missing?`,
+        explanation: "Evaluating what a concept adds to a film shows you understand why it's there — not just that it exists.",
         maxWords: 18,
-        placeholder: `When [character] does [something], it shows ${transferSeq.concept.toLowerCase()} because [brief reason].`,
-        acceptableAnswers: applyKeywords.slice(0, 4),
-        acceptableKeywords: applyKeywords,
-        correctFeedback: `Yes — you found a specific example in ${filmB}. That's the transfer.`,
-        partialFeedback: `You described a moment — now name the specific craft choice or relationship that makes ${transferSeq.concept.toLowerCase()} visible there.`,
-        incorrectFeedback: `Describe one specific scene in ${filmB}: who is in it, what happens, and what it shows about ${transferSeq.concept.toLowerCase()}.`,
+        placeholder: `Without ${transferSeq.concept.toLowerCase()}, the scene where [moment] would lose its meaning because [reason].`,
+        acceptableAnswers: ["without", "lose", "lost", "missing", "meaning", "different", "empty"],
+        acceptableKeywords: ["without", "lose", "lost", "missing", "meaning", "different", "instead", "because", "matter", "remove"],
+        correctFeedback: `Yes — you named what the concept contributes and why its absence would change the film. That's evaluative thinking.`,
+        partialFeedback: `You named a moment — now say what would be different or missing if ${transferSeq.concept.toLowerCase()} weren't there.`,
+        incorrectFeedback: `Name one scene in ${filmB} and say what would be lost if ${transferSeq.concept.toLowerCase()} weren't part of it.`,
         scaffoldSteps: [
           {
-            prompt: `Think about ${filmB}. Is there any scene that felt important or stood out? Just describe it.`,
-            hint: "Don't worry about technique yet — just name the scene. Who is in it, what are they doing.",
-            expectedFocus: "locates a concrete scene in Film B",
+            prompt: `Name one scene in ${filmB} where ${transferSeq.concept.toLowerCase()} feels important. Just describe what happens.`,
+            hint: `Think about a moment in ${filmB} that wouldn't work the same way without the concept — who is in it, what do they do.`,
+            expectedFocus: "locates a scene where the concept is load-bearing",
           },
           {
-            prompt: `What technique or craft choice does the director use in that scene — and what does it show?`,
-            hint: `Look for: framing, silence, color, editing pace. Then say what the director is communicating through it.`,
-            expectedFocus: "connects technique to meaning in Film B",
+            prompt: `If that element weren't in the scene, what would be different or missing?`,
+            hint: `Would the emotion change? Would a character feel different? Would the film's argument fall apart? Say what specifically would be lost.`,
+            expectedFocus: "evaluates the concept's contribution rather than just identifying it",
           },
         ],
         fallbackMultipleChoice: {
-          prompt: `Which of these best describes a moment of ${transferSeq.concept.toLowerCase()} in ${filmB}?`,
+          prompt: `What would ${filmB} lose without ${transferSeq.concept.toLowerCase()}?`,
           options: [
-            `A scene where a character relationship is tested or shaped`,
-            `A scene where a character learns something from a newspaper`,
-            `The opening credits sequence`,
+            `The emotional or thematic core of its most important scenes`,
+            `Some background detail that doesn't affect the main story`,
+            `Nothing — the film would work the same way without it`,
           ],
-          correctAnswer: `A scene where a character relationship is tested or shaped`,
-          explanation: `${transferSeq.concept} shows up whenever characters actively affect each other — that's the moment to find.`,
+          correctAnswer: `The emotional or thematic core of its most important scenes`,
+          explanation: `If a concept is genuinely present in a film, removing it changes what the film is arguing — that's how you know it matters.`,
         },
         revealAnswerAfterFallback: false,
         filmInFocus: filmB,

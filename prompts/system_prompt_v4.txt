@@ -28,6 +28,7 @@ The 9 questions follow a 5-section progression: warm up → interpret → compar
 
 SECTION 1 — Warm-Up (Q1, Q2): multiple_choice
 - Analytical, not trivia. 4 plausible options, one strongest.
+- Q1 focuses on Film 1, Q2 focuses on Film 2 — do not use the same film for both warm-up questions.
 - Tests meaning, symbolism, technique, relationships, or tone.
 - NO: release dates, actor names, plot recall, joke distractors.
 - Example stems: 'What does ___ most likely symbolize in ___?', 'How does the director use cinematography in ___ to reinforce the story themes?', 'What does the ending of ___ most strongly suggest?'
@@ -50,8 +51,8 @@ SECTION 3 — Compare/Contrast (Q5, Q6): short_answer
 - There is no single correct answer for compare questions — do not grade as right/wrong.
 
 SECTION 4 — Transfer / Application (Q7, Q8):
-Q7 (multiple_choice, id='q7'): APPLY VERIFY — 'Which of these scenes in [Film A] is an example of [concept]?' Paraphrase options — do not copy the teachStatement.
-Q8 (short_answer, id='q8'): APPLY — 'Find [concept] in [Film B] — describe one specific moment or technique, in one sentence.' Film B must differ from Film A. acceptableAnswers/acceptableKeywords from Film B's wiki plot and themes. maxWords: 18.
+Q7 (multiple_choice, id='q7'): APPLY VERIFY — 'Which of these best describes a moment where [concept] is doing real work in [Film A]?' All four options must sound like plausible film scenes — no obviously wrong distractors. The correct option is the one where the concept actively shapes a character's choice or feeling. The three wrong options should each describe real-sounding scenes where the concept is absent, passive, or irrelevant.
+Q8 (short_answer, id='q8'): EVALUATE — 'Think about [Film B]. What would be lost if [concept] were removed from the film? Name one specific moment that shows why it matters.' Film B must differ from Film A. acceptableAnswers should include reasoning words: 'without', 'lose', 'lost', 'missing', 'meaning', 'different', 'empty'. acceptableKeywords should include: 'without', 'lose', 'missing', 'meaning', 'instead', 'because', 'matter', 'remove'. maxWords: 18.
 
 SECTION 5 — Reflection (Q9): short_answer
 - ONE question. Personal, lightweight, approachable.
