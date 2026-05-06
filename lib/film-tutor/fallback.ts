@@ -169,6 +169,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
   const filmA = films[0]?.title ?? "one of your favorites";
   const filmB = films[1]?.title ?? "another film in your Top 4";
   const filmC = films[2]?.title ?? "a third favorite";
+  const filmD = films[3]?.title ?? "your fourth favorite";
   const concept = archetype.conceptName;
 
   return [
@@ -313,11 +314,11 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       revealAnswerAfterFallback: true,
       filmInFocus: filmB,
     },
-    // Q4 — Interpretation: scene meaning in filmB
+    // Q4 — Interpretation: scene meaning in filmC (different film from Q3)
     {
       id: "q4",
       questionType: "short_answer",
-      prompt: `Pick one specific scene or moment in ${filmB}. What does it reveal about a character or the film's central idea?`,
+      prompt: `Pick one specific scene or moment in ${filmC}. What does it reveal about a character or the film's central idea?`,
       focus: "Interpretation",
       hint: `Name the scene first — who is in it, what happens. Then say what it reveals about the character or the film's argument.`,
       explanation: "Connecting a specific moment to what the film is arguing is the core move in film analysis.",
@@ -336,7 +337,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       incorrectFeedback: "Pick one scene and say what it means — not just what happens, but what the film is doing through it.",
       scaffoldSteps: [
         {
-          prompt: `Name one specific scene or moment in ${filmB}. Just describe what happens.`,
+          prompt: `Name one specific scene or moment in ${filmC}. Just describe what happens.`,
           hint: "Don't analyze yet — just name the scene: who is in it, what do they do.",
           expectedFocus: "identifies a concrete scene",
         },
@@ -347,7 +348,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         },
       ],
       fallbackMultipleChoice: {
-        prompt: `Which of these best describes what a scene in ${filmB} might reveal?`,
+        prompt: `Which of these best describes what a scene in ${filmC} might reveal?`,
         options: [
           "A character's defining motivation or a theme the film keeps returning to",
           "The film's production budget",
@@ -357,7 +358,7 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
         explanation: "Directors choose to linger on certain scenes because they carry weight — they reveal character or push the film's central idea forward.",
       },
       revealAnswerAfterFallback: true,
-      filmInFocus: filmB,
+      filmInFocus: filmC,
     },
     // Q5 — Compare: filmA vs filmB on shared concept
     {
@@ -394,40 +395,40 @@ function buildQuizQuestions(films: FilmInput[], archetype: TasteArchetype): Quiz
       ],
       filmInFocus: filmA,
     },
-    // Q6 — Compare: filmA vs filmC on shared concept
+    // Q6 — Compare: filmC vs filmD on shared concept (same lens as Q5, different film pair)
     {
       id: "q6",
       questionType: "short_answer",
-      prompt: `Both ${filmA} and ${filmC} use visual style to communicate their themes. Which film does it more effectively, in your view? Name one moment from each.`,
+      prompt: `Both ${filmC} and ${filmD} explore ${concept.toLowerCase()}. How does each film approach it differently? Name one specific moment from either film.`,
       focus: "Compare",
-      hint: `Think about a specific scene in ${filmA} and a specific scene in ${filmC}. What does each one do visually that makes the theme clear?`,
-      explanation: "Comparing visual strategies across films trains you to see technique as a series of deliberate choices, not just style.",
+      hint: `Think about one scene in ${filmC} and one in ${filmD}. What does each film do differently with ${concept.toLowerCase()}?`,
+      explanation: `Comparing how two films handle the same concept shows you how style, tone, and context shape meaning.`,
       maxWords: 20,
-      placeholder: `${filmA} uses framing to isolate characters, while ${filmC} uses color to signal emotional states.`,
+      placeholder: `${filmC} shows ${concept.toLowerCase()} through isolation, while ${filmD} does it through conflict.`,
       acceptableAnswers: [
-        "visually", "style", "framing", "color", "lighting",
-        "shot", "scene", "technique", "moment", "effective",
+        "different", "while", "whereas", "compared", "contrast",
+        "one", "another", "both", "but", "unlike",
       ],
       acceptableKeywords: [
-        "visual", "style", "while", "whereas", "scene",
-        "moment", "technique", "shows", "through", "both",
+        "different", "while", "whereas", "compared", "contrast",
+        "scene", "moment", "shows", "through", "both",
       ],
-      correctFeedback: `You compared the visual strategies of ${filmA} and ${filmC} — that's close reading across films.`,
-      partialFeedback: "You named a technique in one film — now say something about the other so you're comparing.",
-      incorrectFeedback: `Name one visual choice in ${filmA} and one in ${filmC} — then say what makes each effective or not.`,
+      correctFeedback: `You identified how ${filmC} and ${filmD} handle ${concept.toLowerCase()} differently — that's the compare move.`,
+      partialFeedback: "You described one film — now say something about the other so you're actually comparing.",
+      incorrectFeedback: `Name one thing each film does with ${concept.toLowerCase()} — they don't have to be opposites, just different.`,
       scaffoldSteps: [
         {
-          prompt: `Name one visual technique you notice in ${filmA} — just name it: framing, color, lighting, slow motion.`,
-          hint: "Pick something concrete you can see on screen in that film.",
-          expectedFocus: "names a specific visual technique in Film A",
+          prompt: `Think about ${filmC}. Name one moment or scene where ${concept.toLowerCase()} shows up.`,
+          hint: `Just name the moment — who is in it, what happens. Don't worry about ${filmD} yet.`,
+          expectedFocus: "locates a concrete moment in Film C",
         },
         {
-          prompt: `Good. Does ${filmC} use a similar technique, or a different one? Name what it does and say what changes.`,
-          hint: `Look for a scene in ${filmC} that uses a similar or contrasting visual choice. Name the scene briefly.`,
-          expectedFocus: "identifies a visual parallel or contrast in Film C",
+          prompt: `Good. Now think about ${filmD}. Does it handle ${concept.toLowerCase()} in a similar or different way? Name one moment.`,
+          hint: `Name a scene from ${filmD} and say what it does differently from what you described in ${filmC}.`,
+          expectedFocus: "identifies a contrast or parallel with Film D",
         },
       ],
-      filmInFocus: filmA,
+      filmInFocus: filmC,
     },
     // Q7 — Transfer VERIFY (multiple choice) — placeholder, overwritten by buildFallbackQuiz with TransferSequence
     {

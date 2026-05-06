@@ -52,6 +52,14 @@ describe("heuristicFallback — evaluateShortAnswer paths", () => {
     expect(result.verdict).toBe("partial");
   });
 
+  it("returns partial for a single word that matches an acceptable answer", () => {
+    // "family" is in acceptableAnswers — keyword match must always route to partial, never off_base
+    const result = heuristicFallback(makeRequest("family"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.verdict).toBe("partial");
+  });
+
   it("returns off_base for idk (single word under the word-count threshold)", () => {
     const result = heuristicFallback(makeRequest("idk"));
     expect(result.ok).toBe(true);

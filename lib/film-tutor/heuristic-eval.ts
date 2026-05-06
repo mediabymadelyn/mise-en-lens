@@ -4,7 +4,7 @@ import { filterAcceptableKeywords } from "@/lib/film-tutor/keyword-filter";
 export function heuristicFallback(req: EvaluateRequest): EvaluateResponse {
   const answer = req.studentAnswer.trim().toLowerCase();
 
-  if (!answer || answer.split(/\s+/).filter(Boolean).length < 2) {
+  if (!answer) {
     return { ok: true, verdict: "off_base", feedback: "Give me one sentence and we can build from there." };
   }
 
@@ -27,12 +27,19 @@ export function heuristicFallback(req: EvaluateRequest): EvaluateResponse {
   const keywordHits = filteredKeywords.filter((k) => answer.includes(k.toLowerCase())).length;
   const acceptableHit = req.question.acceptableAnswers.some((a) => answer.includes(a.toLowerCase()));
 
-  if (wordCount >= 5 && (acceptableHit || keywordHits >= 1)) {
-    return { ok: true, verdict: "correct", feedback: "Good — that connects to the film." };
-  }
+  // Any keyword or acceptable-answer match routes to partial/correct — never off_base,
+  // even if the answer is a single word.
   if (acceptableHit || keywordHits >= 1) {
-    return { ok: true, verdict: "partial", feedback: "You named it — now add one specific scene or moment.", nextHint: "Name one scene where that appears in the film." };
+    if (wordCount >= 5) {
+      return { ok: true, verdict: "correct", feedback: "Good — that connects to the film." };
+    }
+    return { ok: true, verdict: "partial", feedback: "You're on the right track — now say one specific scene or moment where that shows up in the film.", nextHint: "Name one scene where that appears in the film." };
   }
+
+  if (wordCount < 2) {
+    return { ok: true, verdict: "off_base", feedback: "Give me one sentence and we can build from there." };
+  }
+
   if (wordCount >= 5) {
     return { ok: true, verdict: "partial", feedback: "Try connecting your answer to a specific moment in the film.", nextHint: "Name one character or scene to ground your answer." };
   }

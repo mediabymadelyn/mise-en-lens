@@ -186,6 +186,7 @@ export default function QuizPage() {
   const [consecutiveUncertain, setConsecutiveUncertain] = useState(0);
   const [showUncertainActions, setShowUncertainActions] = useState(false);
   const [consecutiveOffTopic, setConsecutiveOffTopic] = useState(0);
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
 
   // MCQ dimming after second wrong attempt
   const [dimmedOptions, setDimmedOptions] = useState<Set<string>>(new Set());
@@ -402,6 +403,7 @@ export default function QuizPage() {
     setHintCycleIndex(0);
     setHintJustGiven(false);
     setAwaitingConceptFollowup(false);
+    setAwaitingClarification(false);
     setInterpretationOverrideSent(false);
     setCompareOverrideSent(false);
     setMemoryClip(null);
@@ -545,15 +547,50 @@ export default function QuizPage() {
       setShortAnswer("");
       const newConsecutive = consecutiveUncertain + 1;
       setConsecutiveUncertain(newConsecutive);
-      if (newConsecutive >= 2 || consecutiveOffTopic >= 1) {
+      if (newConsecutive >= 2) {
         setShowUncertainActions(true);
       } else {
         setShortAnswerThread((cur) => [
           ...cur,
           { role: "tutor", text: "What part feels unclear — the film, the concept, or the question?" },
         ]);
+        setAwaitingClarification(true);
       }
       return; // No attempt counted
+    }
+
+    // Student responded to "what part feels unclear?" — route by film / concept / question
+    if (awaitingClarification) {
+      setAwaitingClarification(false);
+      const lower = trimmed.toLowerCase();
+      const focus = (activeQuestion.focus ?? "").toLowerCase();
+      let clarificationText: string;
+      if (lower.includes("film")) {
+        clarificationText = activeQuestion.hint;
+      } else if (lower.includes("concept")) {
+        if (focus === "compare") {
+          clarificationText = "Comparing themes means picking one thing each film does with the idea — what one film shows, and how the other handles it differently. They don't need to be opposites.";
+        } else if (focus === "interpretation") {
+          clarificationText = "Interpreting means asking what the film is saying — not just what happens, but what it argues or suggests. Name a theme and point to one moment where you see it.";
+        } else {
+          clarificationText = "Think about the core idea the question is asking about, then say one thing the film does with it.";
+        }
+      } else if (lower.includes("question")) {
+        if (focus === "compare") {
+          clarificationText = "In plain terms: name one thing each film does with the idea. How are they different? One sentence per film is enough.";
+        } else {
+          clarificationText = "In plain terms: name what you think the film is saying about the topic, and point to one moment where you see it. Even a rough answer works.";
+        }
+      } else {
+        clarificationText = activeQuestion.hint;
+      }
+      setShortAnswerThread((cur) => [
+        ...cur,
+        { role: "user", text: trimmed },
+        { role: "tutor", text: clarificationText },
+      ]);
+      setShortAnswer("");
+      return;
     }
 
     // Real answer — reset consecutive uncertain and hint suppression
@@ -612,10 +649,14 @@ export default function QuizPage() {
           { role: "tutor", text: "No problem — here are some options to help you move forward." },
         ]);
         setShowUncertainActions(true);
-        void fetch(`/api/film-clip?title=${encodeURIComponent(filmInFocus)}`)
+        const clipFilm = filmInFocus;
+        void fetch(`/api/film-clip?title=${encodeURIComponent(clipFilm)}`)
           .then((r) => r.json())
           .then((d: { ok: boolean; videoId?: string; title?: string }) => {
-            if (d.ok && d.videoId && d.title) setMemoryClip({ videoId: d.videoId, title: d.title });
+            const currentFilm = (activeQuestion as { filmInFocus?: string }).filmInFocus ?? "";
+            if (d.ok && d.videoId && d.title && currentFilm === clipFilm) {
+              setMemoryClip({ videoId: d.videoId, title: d.title });
+            }
           })
           .catch(() => undefined);
       } else {
@@ -630,7 +671,7 @@ export default function QuizPage() {
       setAttempts(prev => prev + 1);
       const newOffTopic = consecutiveOffTopic + 1;
       setConsecutiveOffTopic(newOffTopic);
-      if (newOffTopic >= 2 || consecutiveUncertain >= 1) {
+      if (newOffTopic >= 2) {
         setShortAnswerThread((cur) => [
           ...cur,
           { role: "tutor", text: "Let me offer a different approach." },

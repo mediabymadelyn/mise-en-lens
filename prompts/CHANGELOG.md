@@ -110,3 +110,32 @@ Minimal prompt. Instructed the model to identify patterns in the user's Top 4, e
 ### Known remaining limitations
 - Stateless evaluation architecture still causes some valid answers to be rejected when they do not contain expected keywords
 - Wikipedia coverage gaps mean obscure and international films receive weaker grounding
+
+---
+
+## v4 patch — Evaluation fixes, quiz structure, and UX routing
+
+**Date:** May 6 2026
+
+### Evaluation prompt changes (evaluate/route.ts system prompt)
+- `off_base` definition narrowed: a single word that names a relevant theme or concept (e.g. "family" for a family dynamics question) is now explicitly `partial`, not `off_base`
+- Rule 7 (compare rubric) updated: scene/moment evidence is only required for compare questions if the prompt explicitly asks for one — character-level or dynamic descriptions are sufficient otherwise. Resolves false `partial` verdicts on valid compare answers
+- Rule 9 (feedback tone) updated: removed instruction to say "That one's a bit off-track" for `off_base` verdicts. Model now instructed to acknowledge what was attempted and name what is missing, and to acknowledge what the student got right when the answer is in the right territory
+
+### Heuristic fallback changes (heuristic-eval.ts)
+- Keyword and acceptable-answer detection now runs before the word-count short-circuit. A single-word answer matching `acceptableKeywords` or `acceptableAnswers` always routes to `partial` — never `off_base`
+- Test added: `"family"` (one word, in `acceptableAnswers`) now correctly returns `partial`
+
+### Quiz structure changes (fallback.ts, openai.ts)
+- Q4 moved from `filmB` to `filmC` — interpretation section now covers two different films instead of asking the same move twice on `filmB`
+- Q6 changed from "filmA vs filmC on visual style" to "filmC vs filmD on the same concept as Q5" — compare section now covers all four films and uses a consistent lens across both questions
+- OpenAI quiz prompt updated to match: Section 2 requires Q3 and Q4 to focus on different films; Section 3 requires Q5 and Q6 to use the same concept lens with Films 1+2 and Films 3+4 respectively
+
+### UX routing fixes (quiz/page.tsx)
+- Fixed cross-contamination between `consecutiveOffTopic` and `consecutiveUncertain` counters — each counter now triggers the uncertain actions panel only when it reaches 2 on its own, preventing a single `"idk"` after a partial verdict from escalating prematurely
+- Added `awaitingClarification` state: when the tutor asks "What part feels unclear — the film, the concept, or the question?", the student's next response is now intercepted and routed to a targeted reply rather than sent to the evaluator as a quiz answer
+  - "film" → shows the question's hint (scene/character-specific)
+  - "concept" → plain-language explanation of the cognitive move being asked (compare or interpret)
+  - "question" → plain restatement of what the question is asking
+- Fixed stale fetch race condition on memory-gap recap clips: the film title is now captured at fetch time and compared to the active question when the fetch resolves — a clip fetched for a previous question is discarded if the question has changed
+- Fixed YouTube recap returning wrong film: API now validates that the returned video title contains the queried film name before returning it to the client

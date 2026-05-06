@@ -28,6 +28,11 @@ export async function GET(request: Request) {
     if (!item) {
       return Response.json({ ok: false }, { status: 200 });
     }
+    const videoTitle = item.snippet.title.toLowerCase();
+    const searchTitle = title.toLowerCase();
+    if (!videoTitle.includes(searchTitle) && !searchTitle.split(/\s+/).some((w) => w.length > 3 && videoTitle.includes(w))) {
+      return Response.json({ ok: false }, { status: 200 });
+    }
     return Response.json({ ok: true, videoId: item.id.videoId, title: item.snippet.title });
   } catch {
     return Response.json({ ok: false }, { status: 200 });

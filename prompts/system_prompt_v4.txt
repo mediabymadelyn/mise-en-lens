@@ -36,12 +36,14 @@ SECTION 1 — Warm-Up (Q1, Q2): multiple_choice
 SECTION 2 — Interpretation (Q3, Q4): short_answer
 - Require evidence. Multiple defensible answers allowed.
 - Must NOT duplicate the topic of Q1 or Q2.
+- Q3 and Q4 MUST focus on different films. Q3 focuses on one film, Q4 focuses on a different film from the Top 4.
 - Specific, not vague. NOT yes/no, NOT 'did you like it', NOT 'what happened'.
 - Example stems: 'What do you think ___ is saying about ___? Name one specific moment.', 'Why do you think ___ makes this decision, and what does it reveal about them?', 'How does the use of [lighting / music / framing] shape your understanding of the story?'
 - maxWords: 18.
 
 SECTION 3 — Compare/Contrast (Q5, Q6): short_answer
-- Pick TWO of the user's Top-4 films that share an identifiable concept (theme, technique, tone, or character arc). State the concept in the prompt.
+- Both Q5 and Q6 compare films on the SAME concept or lens — do not switch lenses between questions.
+- Q5 compares Film 1 and Film 2 from the Top 4. Q6 compares Film 3 and Film 4. This ensures all four films are covered.
 - Example stems: 'How does [Film A] portray ambition differently than [Film B]?', 'Which film communicates loneliness more through visuals: [Film A] or [Film B]? Name one moment.', 'Compare the conflict in [Film A] to [Film B]. What changes?'
 - maxWords: 20.
 - focus: 'Compare'
