@@ -22,17 +22,19 @@
 
 ### P1
 
-Undergraduate, no film background.
+Undergraduate, moderate film background.
 
 - Found blurb mode accessible and easy to read
 - Noted they learned something new about a film they had already seen
 - Quiz created friction: hard to tell when an answer was good enough to move on
 - Typed "idk" at least twice during the quiz; found the clarifying question helpful but wanted more guidance on what to actually say
 - Recommendation felt relevant to their taste
+- Strongly disagreed that the visual layout made content easy to navigate
+- Selected quiz mode / immediate feedback as the most valuable feature despite the friction
 
 ### P2
 
-Undergraduate, no film background.
+Undergraduate, moderate film background.
 
 - Blurb mode felt engaging and personalized
 - Quiz feedback sometimes felt like it was looking for a specific answer rather than evaluating what they actually said
@@ -49,21 +51,31 @@ MAC professor, high film expertise.
 - Found scaffold progression logical but noted some questions expected too specific an answer
 - Described this as a core problem for film analysis: interpretation is inherently open-ended
 - Suggested the compare and contrast section was the strongest part pedagogically
+- Most positive overall: agreed Mise-en-Lens was a valuable educational tool 
+  and would recommend it
+- Wrote that it is "a great way to encourage viewers to think more critically 
+  about what they're watching"
 
 ### P4
 
-Undergraduate, moderate film background.
+Graduate, moderate film background.
 
 - Appreciated the "learn this first" block before the transfer question
 - Found multiple choice warm-up questions too easy
 - Open-ended questions felt more meaningful but harder to navigate
 - Wanted clearer signal when an answer was accepted
+- Compared quiz questions to SparkNotes-style comprehension checks rather than 
+  genuine film analysis
+- Rated likelihood of applying film concepts going forward as unlikely
 
 ## Recurring Issues Across All Participants
 
 - Stateless evaluation rejected valid answers phrased differently than expected keywords
 - Difficulty knowing when to move on from a short answer question
 - Multiple choice questions felt too straightforward compared to the open-ended ones
+- 3 out of 4 participants disagreed or strongly disagreed that answer 
+  feedback gave them enough information to understand the correct concept
+- No participants agreed they always knew what step they were on or what to do next
 
 ## Changes Made Based on Testing
 
